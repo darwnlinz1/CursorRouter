@@ -1,0 +1,49 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r desktop_app/requirements.txt
+          pip install pytest
+
+      - name: Run Test Suite
+        run: |
+          pytest tests/ -q
+
+      - name: Build Standalone Windows Binary
+        working-directory: ./desktop_app
+        run: |
+          python build.py --onefile --windowed
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            desktop_app/dist/CursorRouter.exe
+            desktop_app/dist/manifest.json
+          generate_release_notes: true
+          draft: false
+          prerelease: false

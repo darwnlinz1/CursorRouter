@@ -1,28 +1,45 @@
 # ?? CursorRouter
 
-[![Tests](https://img.shields.io/badge/tests-309%20passed-10b981?style=flat-square)](tests/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-3b82f6?style=flat-square)](https://www.python.org/)
-[![Cursor IDE](https://img.shields.io/badge/Cursor%20IDE-v0.45%2B-000000?style=flat-square)](https://cursor.com/)
-[![License](https://img.shields.io/badge/license-MIT-64748b?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0284c7?style=flat-square)](https://microsoft.com)
-[![Anti--Detect](https://img.shields.io/badge/anti--detect-hardware%20isolation-6366f1?style=flat-square)](#-anti-detect-hardware-fingerprint-isolation)
+<p align="center">
+  <a href="https://github.com/darwnlinz1/CursorRouter/releases"><img src="https://img.shields.io/github/v/release/darwnlinz1/CursorRouter?style=flat-square&color=3b82f6" alt="Latest Release"></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/tests-309%20passed-10b981?style=flat-square" alt="Tests"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3b82f6?style=flat-square" alt="Python 3.10+"></a>
+  <a href="https://cursor.com/"><img src="https://img.shields.io/badge/Cursor%20IDE-v0.45%2B-000000?style=flat-square" alt="Cursor IDE"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License MIT"></a>
+  <a href="https://microsoft.com"><img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0284c7?style=flat-square" alt="Windows 10/11"></a>
+</p>
 
-> Production-grade local account pool manager, two-tier quota router, anti-detect profile isolator, and desktop cockpit built exclusively for **Cursor IDE**.
+<p align="center">
+  <b>Production-grade local account pool manager, two-tier quota router, anti-detect profile isolator, and desktop cockpit built exclusively for Cursor IDE.</b>
+</p>
 
 ---
 
-## ?? Key Highlights
+## ?? Downloads & Releases
 
-- ??? **Anti-Detect Hardware Isolation**: Binds persistent, randomized hardware fingerprints (machineId, macMachineId, devDeviceId, sqmId) to each individual account in SQLite, preventing Cursor from linking multiple accounts to a single machine identity.
-- ? **Two-Tier Priority Routing**:
+Pre-compiled standalone Windows executables are available on the GitHub Releases page:
+
+| Platform | Architecture | Package Type | Download Link |
+| :--- | :--- | :--- | :--- |
+| **Windows 10 / 11** | x64 | Standalone .exe (WebView2) | [Download Latest Release](https://github.com/darwnlinz1/CursorRouter/releases/latest) |
+| **Windows 10 / 11** | x64 | Portable Source Archive | [Source Code (zip)](https://github.com/darwnlinz1/CursorRouter/archive/refs/heads/main.zip) |
+
+*For local building and custom packaging, see the [Desktop App Packaging Guide](desktop_app/README.md).*
+
+---
+
+## ?? Key Features
+
+- ??? **Anti-Detect Hardware Isolation**: Binds persistent, randomized hardware fingerprints (machineId, macMachineId, devDeviceId, sqmId) to each individual account in SQLite, preventing Cursor telemetry from linking multiple accounts to a single machine identity.
+- ? **Two-Tier Priority Routing Engine**:
   - **Tier 1 (Priority Pool - Quota < 50%)**: Dispatched first for blazing fast AI completions.
-  - **Tier 2 (Fallback Pool - Quota 50% - 99%)**: Utilized when Tier 1 is depleted, maximizing Cursor's 5-hour rolling window.
+  - **Tier 2 (Fallback Pool - Quota 50% - 99%)**: Utilized when Tier 1 is exhausted, maximizing Cursor's 5-hour rolling slow queue.
   - **7-Day Cooldown Quarantine**: Accounts reaching 100% or encountering chat lock are automatically blacklisted for 7 days, then released once quota resets.
 - ?? **Seamless Cookie Dropzone**: Auto-generates Cookies/ directory. Drop .txt cookie files and convert them via **12 parallel worker threads** into 60-day access tokens.
-- ?? **Zero Context Loss & Safe Continuation**: Modifies only globalStorage/state.vscdb auth credentials without touching workspaceStorage. Chats, composer history, and file context remain 100% intact across switches.
+- ?? **Zero Context Loss**: Modifies only globalStorage/state.vscdb auth credentials without touching workspaceStorage. Chats, composer history, and file context remain 100% intact across switches.
 - ?? **Keyboard Safety & Keystroke Isolation**: Eliminates fake Alt key hacks with guaranteed Win32 modifier unstick (
 elease_all_modifier_keys in inally:). Prompt dispatch strictly targets verified Cursor.exe HWND with inactive typing checks (>2.5s).
-- ??? **Full 8-Category Cursor Settings Taxonomy**: 100% bi-directional sync with %APPDATA%\Cursor\User\settings.json across General, Appearance, Agent, Git & PRs, Worktrees, Browser & Network, Tab, and Code Intelligence.
+- ??? **Full 8-Category Cursor Settings Taxonomy**: 100% bi-directional sync with %APPDATA%\\Cursor\\User\\settings.json across General, Appearance, Agent, Git & PRs, Worktrees, Browser & Network, Tab, and Code Intelligence.
 - ??? **Minimalist Web & Native Desktop Cockpit**: High-density compact account cards with email masking (???), real-time quota gauges, live sync clocks, and standalone Microsoft Edge WebView2 packaging in desktop_app/.
 
 ---
@@ -121,7 +138,7 @@ CursorRouter/
 ?   ??? index.html               # Minimalist HUD Cockpit (Compact Cards, View Toggle, Settings Modal)
 ??? Cookies/                     # User cookies dropzone directory (.gitignored)
 ?   ??? .gitkeep                 # Preserved folder placeholder
-??? tests/                       # Automated Pytest Suite (300+ tests, 100% pass rate)
+??? tests/                       # Automated Pytest Suite (309 tests, 100% pass rate)
 `
 
 ---
@@ -131,7 +148,7 @@ CursorRouter/
 ### Prerequisites
 - **Windows 10 / 11** (64-bit)
 - **Python 3.10+** (with pip)
-- **Cursor IDE** installed at %LOCALAPPDATA%\Programs\cursor\Cursor.exe
+- **Cursor IDE** installed at %LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe
 
 ### 1. Installation
 Clone the repository and install core dependencies:
