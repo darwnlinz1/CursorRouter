@@ -1587,7 +1587,7 @@ class AccountPoolManager:
                                         "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage",
                                         headers=headers,
                                         json={},
-                                        timeout=6
+                                        timeout=10
                                     )
                                     if r2.status_code == 200:
                                         ud = r2.json()
@@ -1658,7 +1658,10 @@ class AccountPoolManager:
                                 c.close()
 
                 except Exception as e:
-                    print(f"[-] Loi kiem tra startup quota cho account #{acc_id} ({email}): {e}")
+                    if "timed out" in str(e).lower() or "timeout" in str(e).lower():
+                        print(f"[!] Startup quota sync: Account #{acc_id} ({email}) timeout (bo qua, giu cache)")
+                    else:
+                        print(f"[-] Loi kiem tra startup quota cho account #{acc_id} ({email}): {e}")
 
                 with progress_lock:
                     self.startup_sync_progress["current"] += 1
