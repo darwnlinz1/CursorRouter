@@ -247,12 +247,13 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
         # 3. Restore to hard_restart
         res = self.client.post("/api/cursor/auto-switch-config", json={
             "reset_mode": "hard_restart",
-            "auto_resend_action": "auto",
+            "auto_resend_action": "manual",
             "continue_prompt": "Tiếp tục"
         })
         self.assertEqual(res.status_code, 200)
         restored = res.get_json().get("config", {})
         self.assertEqual(restored.get("reset_mode"), "hard_restart")
+        self.assertEqual(restored.get("auto_resend_action"), "manual")
 
     def test_08_api_cursor_hard_restart_endpoints(self):
         """Test POST /api/cursor/hard-restart and /api/cursor/restart endpoints."""
@@ -498,6 +499,17 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
 
         should_cont, r = f.should_auto_continue(auto_resend_cfg="auto", consume=True)
         self.assertTrue(should_cont)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.settings_mgr.update_auto_switch_config({
+            "auto_rotate_enabled": True,
+            "quota_threshold": 100.0,
+            "reset_mode": "hard_restart",
+            "auto_resend_action": "manual",
+            "continue_prompt": "Tiếp tục",
+            "target_mode": "composer"
+        })
 
 
 if __name__ == "__main__":

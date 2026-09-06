@@ -83,42 +83,43 @@ class TestCursorSyncAndSwitch(unittest.TestCase):
     # =========================================================================
     def test_05_auto_switch_config_crud(self):
         """Test reading and writing auto-switch action config."""
-        # 1. Read existing config
+        # 1. Read existing config (default must be manual)
         res = self.client.get("/api/cursor/auto-switch-config")
         self.assertEqual(res.status_code, 200)
         initial_cfg = res.get_json().get("config", {})
         self.assertIn("auto_resend_action", initial_cfg)
         self.assertIn("continue_prompt", initial_cfg)
         self.assertIn("target_mode", initial_cfg)
+        self.assertEqual(initial_cfg.get("auto_resend_action"), "manual")
 
-        # 2. Set to 'manual'
-        payload_manual = {
-            "auto_resend_action": "manual",
+        # 2. Set to 'auto' to verify toggling to auto works
+        payload_auto = {
+            "auto_resend_action": "auto",
             "continue_prompt": "Tiếp tục code",
             "target_mode": "chat"
         }
-        res = self.client.post("/api/cursor/auto-switch-config", json=payload_manual)
+        res = self.client.post("/api/cursor/auto-switch-config", json=payload_auto)
         self.assertEqual(res.status_code, 200)
         saved_cfg = res.get_json().get("config", {})
-        self.assertEqual(saved_cfg.get("auto_resend_action"), "manual")
+        self.assertEqual(saved_cfg.get("auto_resend_action"), "auto")
         self.assertEqual(saved_cfg.get("continue_prompt"), "Tiếp tục code")
         self.assertEqual(saved_cfg.get("target_mode"), "chat")
 
         # Verify disk persistence via manager
         mgr_cfg = self.settings_mgr.get_auto_switch_config()
-        self.assertEqual(mgr_cfg.get("auto_resend_action"), "manual")
+        self.assertEqual(mgr_cfg.get("auto_resend_action"), "auto")
         self.assertEqual(mgr_cfg.get("continue_prompt"), "Tiếp tục code")
 
-        # 3. Restore to 'auto'
-        payload_auto = {
-            "auto_resend_action": "auto",
+        # 3. Restore to 'manual' (the system default)
+        payload_manual = {
+            "auto_resend_action": "manual",
             "continue_prompt": "Tiếp tục",
             "target_mode": "composer"
         }
-        res = self.client.post("/api/cursor/auto-switch-config", json=payload_auto)
+        res = self.client.post("/api/cursor/auto-switch-config", json=payload_manual)
         self.assertEqual(res.status_code, 200)
         restored_cfg = res.get_json().get("config", {})
-        self.assertEqual(restored_cfg.get("auto_resend_action"), "auto")
+        self.assertEqual(restored_cfg.get("auto_resend_action"), "manual")
         self.assertEqual(restored_cfg.get("continue_prompt"), "Tiếp tục")
         self.assertEqual(restored_cfg.get("target_mode"), "composer")
 
@@ -297,6 +298,17 @@ class TestCursorSyncAndSwitch(unittest.TestCase):
             self.assertEqual(active.get("refresh_token"), mock_acc["refresh_token"])
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.settings_mgr.update_auto_switch_config({
+            "auto_rotate_enabled": True,
+            "quota_threshold": 100.0,
+            "reset_mode": "hard_restart",
+            "auto_resend_action": "manual",
+            "continue_prompt": "Tiếp tục",
+            "target_mode": "composer"
+        })
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

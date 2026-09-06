@@ -831,8 +831,8 @@
                             <span class="font-bold text-white text-sm">Trạng Thái Bàn Phím Win32 &amp; Hoạt Động Máy Host</span>
                         </div>
                         <div class="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
-                            <span id="dbg-kb-overall-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OK: Không kẹt</span>
-                            <button onclick="unstickKeys(); refreshDebugInfo();" id="btn-unstick-keys" class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium transition cursor-pointer flex items-center space-x-1.5 flex-shrink-0">
+                            <span id="dbg-kb-overall-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap flex-shrink-0">OK: Không kẹt</span>
+                            <button onclick="unstickKeys(); refreshDebugInfo();" id="btn-unstick-keys" class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium transition cursor-pointer flex items-center space-x-1.5 flex-shrink-0 whitespace-nowrap">
                                 <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
                                 <span>Gỡ Kẹt Phím</span>
                             </button>
@@ -1375,6 +1375,14 @@
                             <div class="space-y-2 pt-1">
                                 <div class="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border border-zinc-800">
                                     <div>
+                                        <div class="font-semibold text-xs text-gray-200">Privacy Mode (Chế Độ Riêng Tư)</div>
+                                        <div class="text-[10px] text-gray-400">Khóa telemetry về off và tắt mọi báo cáo phân tích</div>
+                                    </div>
+                                    <input type="checkbox" id="toggle-privacy-mode" class="w-4 h-4 accent-emerald-500 cursor-pointer">
+                                </div>
+
+                                <div class="flex items-center justify-between p-2.5 rounded-lg bg-black/20 border border-zinc-800">
+                                    <div>
                                         <div class="font-semibold text-xs text-gray-200">Ghost Mode Tuyệt Đối (cursor.ghostMode)</div>
                                         <div class="text-[10px] text-gray-400">Không gửi bất kỳ log sử dụng hay snippet nào về máy chủ Cursor</div>
                                     </div>
@@ -1857,17 +1865,6 @@
                                 </div>
                                 <input type="checkbox" id="toggle-inline-diffs" class="w-5 h-5 accent-zinc-200 rounded cursor-pointer">
                             </div>
-
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <div class="flex items-center space-x-2">
-                                        <h5 class="font-bold text-white text-xs">Auto Scroll (Tự Cuộn Màn Hình)</h5>
-                                        <span class="text-[10px] font-mono text-gray-400">cursor.general.autoScroll</span>
-                                    </div>
-                                    <p class="text-[11px] text-gray-400 mt-0.5">Tự động cuộn màn hình theo dòng suy nghĩ và phản hồi của AI.</p>
-                                </div>
-                                <input type="checkbox" id="toggle-auto-scroll" class="w-5 h-5 accent-zinc-200 rounded cursor-pointer">
-                            </div>
                         </div>
 
                         <div class="pt-2 flex justify-end">
@@ -1903,17 +1900,6 @@
                             <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
                                 <div>
                                     <div class="flex items-center space-x-2">
-                                        <h5 class="font-bold text-white text-xs">Chỉ Index Codebase Cục Bộ (Index Locally Only)</h5>
-                                        <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-mono font-semibold">cursor.privacy.indexCodebaseLocally</span>
-                                    </div>
-                                    <p class="text-[11px] text-gray-400 mt-0.5">Tuyệt đối không upload dữ liệu embeddings của dự án lên đám mây; chỉ lưu vector cache trong máy.</p>
-                                </div>
-                                <input type="checkbox" id="toggle-index-locally-only" class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
-                            </div>
-
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <div class="flex items-center space-x-2">
                                         <h5 class="font-bold text-white text-xs">Luôn Tìm Kiếm Codebase (@Codebase)</h5>
                                         <span class="text-[10px] font-mono text-gray-400">cursor.chat.alwaysSearchCodebase</span>
                                     </div>
@@ -1930,7 +1916,7 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveComposerSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                            <button onclick="saveIntelligenceSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
                                 <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 <span>Lưu Cài Đặt Code Intelligence</span>
                             </button>
@@ -2016,69 +2002,6 @@
                             <button onclick="saveProxyRoutingSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
                                 <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 <span>Lưu Cấu Hình Định Tuyến Proxy</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- TAB: PRIVACY & GHOST MODE -->
-                    <div id="settings-tab-privacy" class="settings-tab-content hidden space-y-6">
-                        <div class="border-b border-zinc-800 pb-4">
-                            <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                <span>Quyền Riêng Tư (Privacy) &amp; Ghost Mode</span>
-                            </h4>
-                            <p class="text-xs text-gray-400 mt-1">Chặn đứng toàn bộ telemetry gửi về máy chủ và kích hoạt cờ Ghost Mode chống cấm máy.</p>
-                        </div>
-
-                        <div class="space-y-3">
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <div class="flex items-center space-x-2">
-                                        <h5 class="font-bold text-white text-xs uppercase tracking-wider">Privacy Mode</h5>
-                                        <span class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono font-medium">telemetry.telemetryLevel: off</span>
-                                    </div>
-                                    <p class="text-xs text-gray-400 mt-0.5">Tắt hoàn toàn telemetry và crash reporter trong settings.json.</p>
-                                </div>
-                                <input type="checkbox" id="toggle-privacy-mode" class="w-5 h-5 accent-zinc-200 rounded cursor-pointer">
-                            </div>
-
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <div class="flex items-center space-x-2">
-                                        <h5 class="font-bold text-white text-xs uppercase tracking-wider">Ghost Mode (x-ghost-mode)</h5>
-                                        <span class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono font-medium">cursor.ghostMode: true</span>
-                                    </div>
-                                    <p class="text-xs text-gray-400 mt-0.5">Bật cờ ghost mode để giấu telemetry request và thông tin định danh máy.</p>
-                                </div>
-                                <input type="checkbox" id="toggle-ghost-mode" class="w-5 h-5 accent-zinc-200 rounded cursor-pointer">
-                            </div>
-
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <h5 class="font-bold text-white text-xs uppercase tracking-wider">Mức Độ Telemetry (Telemetry Level)</h5>
-                                    <p class="text-xs text-gray-400 mt-0.5">Chọn cấp độ gửi dữ liệu phân tích hệ thống về máy chủ.</p>
-                                </div>
-                                <select id="select-telemetry-level" class="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-zinc-500">
-                                    <option value="off">off (Tắt hoàn toàn - An toàn tuyệt đối)</option>
-                                    <option value="error">error (Chỉ gửi khi có lỗi)</option>
-                                    <option value="crash">crash (Chỉ gửi khi crash app)</option>
-                                    <option value="all">all (Gửi tất cả)</option>
-                                </select>
-                            </div>
-
-                            <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
-                                <div>
-                                    <h5 class="font-bold text-white text-xs uppercase tracking-wider">Gửi Báo Cáo Sự Cố (Crash Reporter)</h5>
-                                    <p class="text-xs text-gray-400 mt-0.5">Cho phép Cursor tự động tải crash dumps về máy chủ.</p>
-                                </div>
-                                <input type="checkbox" id="toggle-crash-reporter" class="w-5 h-5 accent-zinc-200 rounded cursor-pointer">
-                            </div>
-                        </div>
-
-                        <div class="pt-2 flex justify-end">
-                            <button onclick="savePrivacySettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
-                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                <span>Cập Nhật Quyền Riêng Tư (Privacy)</span>
                             </button>
                         </div>
                     </div>
@@ -2286,19 +2209,6 @@
                                 </div>
                                 <input type="checkbox" id="toggle-git-commit-msg" checked class="w-4 h-4 accent-zinc-200 cursor-pointer">
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- TAB: WORKTREES -->
-                    <div id="settings-tab-worktrees" class="settings-tab-content hidden space-y-6">
-                        <div class="border-b border-zinc-800 pb-4">
-                            <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                                <span>Git Worktrees (Đa Nhánh Cô Lập)</span>
-                            </h4>
-                            <p class="text-xs text-zinc-400 mt-1">Quản lý không gian làm việc đa nhánh song song mà không cần clone lại toàn bộ repository.</p>
-                        </div>
-                        <div class="space-y-3">
                             <div class="glass-card p-4 rounded-xl border border-zinc-800 flex items-center justify-between bg-[#181818]">
                                 <div>
                                     <div class="flex items-center space-x-2">
@@ -2919,10 +2829,10 @@
                 const overall = document.getElementById('dbg-kb-overall-badge');
                 if (overall) {
                     if (kb.is_stuck) {
-                        overall.className = 'px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40';
+                        overall.className = 'px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 whitespace-nowrap flex-shrink-0';
                         overall.textContent = 'CẢNH BÁO: PHÍM BỊ KẸT';
                     } else {
-                        overall.className = 'px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+                        overall.className = 'px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap flex-shrink-0';
                         overall.textContent = 'OK: Không kẹt';
                     }
                 }
@@ -3589,7 +3499,6 @@
 
                     if (pathEl && data.path) pathEl.textContent = data.path;
                     if (countEl) countEl.textContent = data.count || 0;
-                    if (badgeEl) badgeEl.innerHTML = `<span id="cookie-files-count">${data.count || 0}</span> file cookie`;
                     if (totalEl) totalEl.textContent = data.total_accounts || 0;
                     if (validEl) validEl.textContent = data.valid_tokens || 0;
                     if (t1El && data.tier1_count !== undefined) t1El.textContent = `${data.tier1_count} T1`;
@@ -4342,8 +4251,10 @@
             if (target === 'tab') target = 'features';
             if (target === 'code_intelligence') target = 'intelligence';
             if (target === 'agent') target = 'composer';
+            if (target === 'privacy') target = 'general';
+            if (target === 'worktrees') target = 'git_prs';
 
-            const allTabs = ['general', 'appearance', 'profiles', 'models', 'features', 'composer', 'intelligence', 'network', 'privacy', 'hardware', 'autoswitch', 'cursorrules', 'git_prs', 'worktrees'];
+            const allTabs = ['general', 'appearance', 'profiles', 'models', 'features', 'composer', 'intelligence', 'network', 'hardware', 'autoswitch', 'cursorrules', 'git_prs'];
             allTabs.forEach(t => {
                 const el = document.getElementById(`settings-tab-${t}`);
                 if (el) {
@@ -4356,7 +4267,7 @@
             });
 
             // Highlight corresponding sidebar button
-            const allBtnKeys = ['general', 'appearance', 'models', 'features', 'composer', 'agent', 'git_prs', 'worktrees', 'browser_network', 'tab', 'code_intelligence', 'profiles', 'hardware', 'autoswitch', 'cursorrules'];
+            const allBtnKeys = ['general', 'appearance', 'models', 'features', 'composer', 'agent', 'git_prs', 'browser_network', 'tab', 'code_intelligence', 'profiles', 'hardware', 'autoswitch', 'cursorrules'];
             allBtnKeys.forEach(k => {
                 const btn = document.getElementById(`tab-btn-${k}`);
                 if (btn) {
@@ -4629,6 +4540,11 @@
                 format_on_save: !!document.getElementById('toggle-editor-format-save')?.checked,
                 color_theme: document.getElementById('select-editor-color-theme')?.value || 'Default Dark Modern',
 
+                startup_editor: document.getElementById('select-startup-editor')?.value || 'none',
+                restore_windows: document.getElementById('select-restore-windows')?.value || 'all',
+                dnd_mode: !!document.getElementById('toggle-dnd-mode')?.checked,
+                silent_notifications: !!document.getElementById('toggle-silent-notifications')?.checked,
+
                 privacy_mode: !!document.getElementById('toggle-privacy-mode')?.checked,
                 ghost_mode: !!document.getElementById('toggle-ghost-mode')?.checked,
                 telemetry_level: document.getElementById('select-telemetry-level')?.value || 'off',
@@ -4800,6 +4716,19 @@
                 const codebaseEl = document.getElementById('toggle-always-search-codebase');
                 if (codebaseEl) codebaseEl.checked = !!data.always_search_codebase;
 
+                // General: Startup, Window Restoration & Notifications
+                const startupEl = document.getElementById('select-startup-editor');
+                if (startupEl && data.startup_editor) startupEl.value = data.startup_editor;
+
+                const restoreWinEl = document.getElementById('select-restore-windows');
+                if (restoreWinEl && data.restore_windows) restoreWinEl.value = data.restore_windows;
+
+                const dndEl = document.getElementById('toggle-dnd-mode');
+                if (dndEl) dndEl.checked = !!data.dnd_mode;
+
+                const silentEl = document.getElementById('toggle-silent-notifications');
+                if (silentEl) silentEl.checked = !!data.silent_notifications;
+
                 const autoScrollEl = document.getElementById('toggle-auto-scroll');
                 if (autoScrollEl) autoScrollEl.checked = data.auto_scroll !== undefined ? !!data.auto_scroll : true;
 
@@ -4857,6 +4786,71 @@
 
             } catch (err) {
                 console.error('Error loading settings:', err);
+            }
+        }
+
+        async function saveGeneralSettings() {
+            try {
+                const startupEditor = document.getElementById('select-startup-editor')?.value || 'none';
+                const restoreWindows = document.getElementById('select-restore-windows')?.value || 'all';
+                const dndMode = !!document.getElementById('toggle-dnd-mode')?.checked;
+                const silentNotifications = !!document.getElementById('toggle-silent-notifications')?.checked;
+                const autoScroll = document.getElementById('toggle-auto-scroll')?.checked ?? true;
+                
+                const ghostMode = document.getElementById('toggle-ghost-mode')?.checked ?? true;
+                const indexLocally = !!document.getElementById('toggle-index-locally-only')?.checked;
+                const crashReporter = !!document.getElementById('toggle-crash-reporter')?.checked;
+                const telemetryLevel = document.getElementById('select-telemetry-level')?.value || 'off';
+                const privacyMode = !!document.getElementById('toggle-privacy-mode')?.checked;
+
+                const updates = {
+                    startup_editor: startupEditor,
+                    restore_windows: restoreWindows,
+                    dnd_mode: dndMode,
+                    silent_notifications: silentNotifications,
+                    auto_scroll: autoScroll,
+                    ghost_mode: ghostMode,
+                    index_locally_only: indexLocally,
+                    enable_crash_reporter: crashReporter,
+                    telemetry_level: telemetryLevel,
+                    privacy_mode: privacyMode
+                };
+
+                const res = await fetch('/api/cursor/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Đã lưu cài đặt General & Quyền Riêng Tư!', 'success');
+                } else {
+                    showToast('Lỗi khi lưu General: ' + (data.error || ''), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi kết nối khi lưu cài đặt General', 'error');
+            }
+        }
+
+        async function saveIntelligenceSettings() {
+            try {
+                const updates = {
+                    indexing_enable: !!document.getElementById('toggle-indexing-enable')?.checked,
+                    always_search_codebase: !!document.getElementById('toggle-always-search-codebase')?.checked
+                };
+                const res = await fetch('/api/cursor/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Đã lưu cài đặt Code Intelligence & Indexing!', 'success');
+                } else {
+                    showToast('Lỗi khi lưu Code Intelligence: ' + (data.error || ''), 'error');
+                }
+            } catch (e) {
+                showToast('Lỗi kết nối khi lưu Code Intelligence', 'error');
             }
         }
 
@@ -5052,9 +5046,11 @@
             try {
                 const isHard = document.getElementById('reset-mode-hard')?.checked ?? true;
                 const resetMode = isHard ? 'hard_restart' : 'soft_reload';
-                let action = 'auto';
+                let action = 'manual';
                 if (document.getElementById('auto-resend-action-always')?.checked) {
                     action = 'always';
+                } else if (document.getElementById('auto-resend-action-auto')?.checked) {
+                    action = 'auto';
                 } else if (document.getElementById('auto-resend-action-manual')?.checked) {
                     action = 'manual';
                 }
