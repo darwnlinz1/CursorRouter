@@ -53,7 +53,7 @@ class CursorSettingsManager:
         "auto_rotate_enabled": True,
         "quota_threshold": 100.0,
         "reset_mode": "hard_restart",  # "hard_restart" | "soft_reload"
-        "auto_resend_action": "auto",  # "auto" | "always" | "manual"
+        "auto_resend_action": "manual",  # "auto" | "always" | "manual"
         "continue_prompt": "Tiếp tục",
         "target_mode": "composer",     # "composer" | "chat"
         "antidetect_mode": "account_locked"  # "account_locked" | "stealth_randomize" | "native_standard"
@@ -156,7 +156,7 @@ class CursorSettingsManager:
                 "reset_mode": "hard_restart",
                 "auto_rotate_enabled": True,
                 "quota_threshold": 100.0,
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "continue_prompt": "Tiếp tục",
                 "target_mode": "composer",
                 "startup_editor": "none",
@@ -240,7 +240,7 @@ class CursorSettingsManager:
                 "reset_mode": "hard_restart",
                 "auto_rotate_enabled": True,
                 "quota_threshold": 100.0,
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "continue_prompt": "Tiếp tục giải quyết task này hoàn chỉnh",
                 "target_mode": "composer"
             }
@@ -291,7 +291,7 @@ class CursorSettingsManager:
                 "reset_mode": "hard_restart",
                 "auto_rotate_enabled": True,
                 "quota_threshold": 45.0,
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "continue_prompt": "Tiếp tục",
                 "target_mode": "composer"
             }
@@ -342,7 +342,7 @@ class CursorSettingsManager:
                 "reset_mode": "hard_restart",
                 "auto_rotate_enabled": True,
                 "quota_threshold": 48.0,
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "continue_prompt": "Tiếp tục",
                 "target_mode": "composer"
             }
@@ -580,7 +580,7 @@ class CursorSettingsManager:
             "reset_mode": autoswitch.get("reset_mode", "hard_restart"),
             "auto_rotate_enabled": autoswitch.get("auto_rotate_enabled", True),
             "quota_threshold": autoswitch.get("quota_threshold", 100.0),
-            "auto_resend_action": autoswitch.get("auto_resend_action", "auto"),
+            "auto_resend_action": autoswitch.get("auto_resend_action", "manual"),
             "continue_prompt": autoswitch.get("continue_prompt", "Tiếp tục"),
             "target_mode": autoswitch.get("target_mode", "composer"),
             # Structured 8 authentic Cursor categories

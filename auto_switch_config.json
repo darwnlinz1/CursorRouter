@@ -2,7 +2,7 @@
     "auto_rotate_enabled": true,
     "quota_threshold": 100.0,
     "reset_mode": "hard_restart",
-    "auto_resend_action": "auto",
+    "auto_resend_action": "manual",
     "continue_prompt": "Tiếp tục",
     "target_mode": "composer",
     "antidetect_mode": "account_locked"

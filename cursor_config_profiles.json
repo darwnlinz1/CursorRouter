@@ -11,7 +11,7 @@
             "settings": {
                 "always_search_codebase": false,
                 "anthropic_key": "",
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "auto_rotate_enabled": true,
                 "auto_scroll": true,
                 "color_theme": "Default Dark Modern",
@@ -65,7 +65,7 @@
             "settings": {
                 "always_search_codebase": true,
                 "anthropic_key": "",
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "auto_rotate_enabled": true,
                 "auto_scroll": true,
                 "color_theme": "Default Dark Modern",
@@ -116,7 +116,7 @@
             "settings": {
                 "always_search_codebase": false,
                 "anthropic_key": "",
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "auto_rotate_enabled": true,
                 "auto_scroll": true,
                 "color_theme": "Default Dark Modern",
@@ -170,7 +170,7 @@
             "settings": {
                 "always_search_codebase": false,
                 "anthropic_key": "",
-                "auto_resend_action": "auto",
+                "auto_resend_action": "manual",
                 "auto_rotate_enabled": true,
                 "auto_scroll": true,
                 "color_theme": "Default Dark Modern",

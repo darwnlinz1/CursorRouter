@@ -230,8 +230,8 @@
         <section id="cookie-dropzone-section" class="glass-card rounded-xl p-5 border border-zinc-800 bg-[#141414]">
             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
                 <div class="flex items-start sm:items-center space-x-3.5">
-                    <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-lg flex-shrink-0">
-                        🍪
+                    <div class="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-300 flex-shrink-0">
+                        <svg class="w-5 h-5 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                     </div>
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
@@ -246,7 +246,8 @@
                             <span class="text-xs text-zinc-500 font-mono">Thư mục tự tạo:</span>
                             <button onclick="copyCookieFolderPath()" class="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-mono transition cursor-pointer" title="Click để sao chép đường dẫn thư mục">
                                 <span id="cookie-folder-path" class="truncate max-w-xs sm:max-w-md">Cookies/</span>
-                                <span class="text-[10px] text-zinc-400">📋 Copy</span>
+                                <svg class="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                <span class="text-[10px] text-zinc-400">Copy</span>
                             </button>
                         </div>
                     </div>
@@ -255,15 +256,15 @@
                 <!-- Primary Action Buttons -->
                 <div class="flex items-center space-x-2.5 flex-shrink-0 flex-wrap sm:flex-nowrap">
                     <button onclick="openCookieFolder()" id="btn-open-cookie-folder" class="flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700 hover:border-zinc-600 text-xs font-medium transition cursor-pointer shadow-sm" title="Mở trực tiếp thư mục Cookies trong Windows Explorer để thả hàng chục/hàng trăm file .txt cùng lúc">
-                        <span>📂</span>
+                        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                         <span>Mở Thư Mục Cookies</span>
                     </button>
                     <button onclick="quarantineCorruptedCookies()" id="btn-quarantine-cookies" class="flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 hover:border-zinc-600 text-xs font-medium transition cursor-pointer shadow-sm" title="Tự động di chuyển file cookie hỏng/0 byte/expired vào Cookies/Archive_Corrupted">
-                        <span>🛡️</span>
+                        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                         <span>Cách Ly File Hỏng</span>
                     </button>
                     <button onclick="convertCookiesToTokens()" id="btn-convert-cookies" class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition cursor-pointer shadow-sm" title="Quét toàn bộ file trong thư mục Cookies và đổi sang Access Token với 12 luồng song song">
-                        <span>⚡</span>
+                        <svg class="w-4 h-4 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                         <span>Quét &amp; Chuyển Đổi Hàng Loạt (12 Luồng)</span>
                     </button>
                 </div>
@@ -273,7 +274,7 @@
             <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div class="lg:col-span-1 p-3.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 text-xs space-y-2 flex flex-col justify-center">
                     <div class="flex items-center space-x-2 text-zinc-200 font-semibold">
-                        <span>🚀</span>
+                        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         <span>Quy trình nạp tài khoản:</span>
                     </div>
                     <ol class="list-decimal list-inside text-zinc-400 space-y-1 text-[11px] leading-relaxed">
@@ -286,7 +287,7 @@
                 <div id="cookie-drop-area" onclick="document.getElementById('cookie-file-input').click()" ondragover="handleCookieDragOver(event)" ondragleave="handleCookieDragLeave(event)" ondrop="handleCookieDrop(event)" class="lg:col-span-2 border border-dashed border-zinc-700/80 hover:border-zinc-500 rounded-lg p-4 text-center transition bg-zinc-900/30 hover:bg-zinc-900/60 cursor-pointer flex flex-col items-center justify-center space-y-1.5">
                     <input type="file" id="cookie-file-input" multiple accept=".txt" onchange="handleCookieFileSelect(event)" class="hidden">
                     <div class="flex items-center space-x-2 pointer-events-none text-zinc-400">
-                        <span class="text-base">📥</span>
+                        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <span class="text-xs font-medium text-zinc-300">Hoặc kéo thả file cookie (.txt) trực tiếp vào đây</span>
                     </div>
                     <p class="text-[11px] text-zinc-500 font-mono pointer-events-none">Hệ thống sẽ tự động lưu vào thư mục Cookies và kích hoạt chuyển đổi 12 luồng</p>
@@ -342,7 +343,7 @@
                             <span class="text-zinc-600">•</span>
                             <span id="active-model-badge" class="px-2 py-0.5 text-[10px] font-mono font-medium rounded bg-zinc-800 text-zinc-300 border border-zinc-700">Model: Auto</span>
                             <span class="text-zinc-600">•</span>
-                            <span id="active-continue-badge" class="px-2 py-0.5 text-[10px] font-mono font-medium rounded bg-zinc-800 text-zinc-300 border border-zinc-700">Tiếp tục: Tự gửi</span>
+                            <span id="active-continue-badge" class="px-2 py-0.5 text-[10px] font-mono font-medium rounded bg-zinc-800 text-zinc-300 border border-zinc-700">Tiếp tục: Thủ công</span>
                         </div>
                     </div>
                 </div>
@@ -597,7 +598,7 @@
                         <tr>
                             <td colspan="7" class="px-6 py-12 text-center text-gray-500">
                                 <div class="flex flex-col items-center justify-center space-y-2">
-                                    <span class="animate-spin text-2xl">⏳</span>
+                                    <svg class="animate-spin h-6 w-6 text-zinc-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                     <span>Đang đồng bộ và tải danh sách tài khoản...</span>
                                 </div>
                             </td>
@@ -641,8 +642,8 @@
             <!-- Header -->
             <div class="p-5 border-b border-zinc-800 flex items-center justify-between bg-black/50 flex-shrink-0">
                 <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-300 text-xl font-mono shadow-inner">
-                        🛡️
+                    <div class="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-300 font-mono shadow-inner">
+                        <svg class="w-5 h-5 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                     </div>
                     <div>
                         <div class="flex items-center space-x-2">
@@ -653,8 +654,8 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button onclick="loadAntidetectConfig()" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-zinc-800 hover:border-zinc-500 text-xs font-semibold transition cursor-pointer flex items-center space-x-1" title="Làm mới cấu hình">
-                        <span>🔄</span>
+                    <button onclick="loadAntidetectConfig()" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-zinc-800 hover:border-zinc-500 text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5" title="Làm mới cấu hình">
+                        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         <span class="hidden sm:inline">Làm Mới</span>
                     </button>
                     <button onclick="closeAntidetectModal()" class="text-gray-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition cursor-pointer">
@@ -680,7 +681,7 @@
                                 <label for="radio-mode-locked" class="text-xs font-bold text-white cursor-pointer">Khóa Vân Tay Theo Acc</label>
                             </div>
                             <p class="text-[11px] text-zinc-400 leading-relaxed">Mỗi tài khoản lưu 1 bộ Machine ID riêng biệt trong SQLite, tự động khôi phục khi đổi acc (chuẩn Anti-detect Browser).</p>
-                            <span class="text-[10px] font-mono text-emerald-400 font-medium">Khuyên dùng ★★★</span>
+                            <span class="text-[10px] font-mono text-emerald-400 font-medium">Khuyên dùng</span>
                         </div>
 
                         <div onclick="setAntidetectMode('stealth_randomize')" id="card-mode-randomize" class="p-3 rounded-lg border border-zinc-800 bg-zinc-900/40 hover:border-amber-500/60 transition cursor-pointer flex flex-col justify-between space-y-2">
@@ -708,11 +709,13 @@
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">2. Vân Tay Phần Cứng Cursor Hiện Tại (storage.json)</span>
                         <div class="flex items-center space-x-2">
-                            <button onclick="spoofMachineIDs()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-mono transition cursor-pointer">
-                                🎲 Randomize ID
+                            <button onclick="spoofMachineIDs()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-mono transition cursor-pointer flex items-center space-x-1">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <span>Tạo ID Ngẫu Nhiên</span>
                             </button>
-                            <button onclick="restoreMachineIDs()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-mono transition cursor-pointer">
-                                ⏪ Khôi Phục Gốc
+                            <button onclick="restoreMachineIDs()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-mono transition cursor-pointer flex items-center space-x-1">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                                <span>Khôi Phục Gốc</span>
                             </button>
                         </div>
                     </div>
@@ -760,11 +763,13 @@
                             <option value="">-- Chọn tài khoản để xem vân tay riêng --</option>
                         </select>
                         <div class="flex items-center space-x-2">
-                            <button onclick="regenerateSelectedFingerprint()" id="btn-ad-regen" disabled class="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:pointer-events-none">
-                                🔄 Cấp Vân Tay Mới
+                            <button onclick="regenerateSelectedFingerprint()" id="btn-ad-regen" disabled class="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <span>Cấp Vân Tay Mới</span>
                             </button>
-                            <button onclick="applySelectedFingerprint()" id="btn-ad-apply" disabled class="px-3 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition cursor-pointer disabled:opacity-40 disabled:pointer-events-none">
-                                ⚡ Áp Dụng Ngay
+                            <button onclick="applySelectedFingerprint()" id="btn-ad-apply" disabled class="px-3 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition cursor-pointer disabled:opacity-40 disabled:pointer-events-none flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Áp Dụng Ngay</span>
                             </button>
                         </div>
                     </div>
@@ -785,6 +790,7 @@
     </div>
 
     <!-- ===================================================================== -->
+    <!-- ===================================================================== -->
     <!-- System Diagnostics & Debug Modal (Cursor Diagnostics HUD) -->
     <!-- ===================================================================== -->
     <div id="debug-modal" onclick="if(event.target===this) closeDebugModal()" class="fixed inset-0 z-50 hidden modal-backdrop flex items-center justify-center p-3 sm:p-5">
@@ -792,8 +798,8 @@
             <!-- Header -->
             <div class="p-5 border-b border-zinc-800 flex items-center justify-between bg-black/50 flex-shrink-0">
                 <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-300 text-xl font-mono shadow-inner">
-                        ⚡
+                    <div class="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-300 font-mono shadow-inner">
+                        <svg class="w-5 h-5 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     </div>
                     <div>
                         <div class="flex items-center space-x-2">
@@ -804,8 +810,8 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button onclick="refreshDebugInfo()" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-zinc-800 hover:border-zinc-500 text-xs font-semibold transition cursor-pointer flex items-center space-x-1" title="Làm mới dữ liệu">
-                        <span>🔄</span>
+                    <button onclick="refreshDebugInfo()" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-zinc-800 hover:border-zinc-500 text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5" title="Làm mới dữ liệu">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         <span class="hidden sm:inline">Làm Mới</span>
                     </button>
                     <button onclick="closeDebugModal()" class="text-gray-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition cursor-pointer">
@@ -821,13 +827,14 @@
                 <div class="p-4 rounded-xl bg-white/[0.03] border border-zinc-800 space-y-3">
                     <div class="flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center space-x-2">
-                            <span class="text-base">⌨️</span>
+                            <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             <span class="font-bold text-white text-sm">Trạng Thái Bàn Phím Win32 &amp; Hoạt Động Máy Host</span>
                         </div>
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
                             <span id="dbg-kb-overall-badge" class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">OK: Không kẹt</span>
-                            <button onclick="unstickKeys(); refreshDebugInfo();" class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold transition cursor-pointer">
-                                🔓 Gỡ Kẹt Ngay
+                            <button onclick="unstickKeys(); refreshDebugInfo();" id="btn-unstick-keys" class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium transition cursor-pointer flex items-center space-x-1.5 flex-shrink-0">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                                <span>Gỡ Kẹt Phím</span>
                             </button>
                         </div>
                     </div>
@@ -868,15 +875,17 @@
                 <div class="p-4 rounded-xl bg-white/[0.03] border border-zinc-800 space-y-3">
                     <div class="flex items-center justify-between flex-wrap gap-2">
                         <div class="flex items-center space-x-2">
-                            <span class="text-base">🖥️</span>
+                            <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                             <span class="font-bold text-white text-sm">Tiến Trình &amp; Cửa Sổ Cursor IDE</span>
                         </div>
-                        <div class="flex items-center space-x-2">
-                            <button onclick="reloadWindowFromDebug()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 border border-zinc-800 text-xs font-semibold transition cursor-pointer">
-                                🔄 Reload (Ctrl+Shift+F11)
+                        <div class="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
+                            <button onclick="reloadWindowFromDebug()" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 border border-zinc-800 text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <span>Reload (Ctrl+Shift+F11)</span>
                             </button>
-                            <button onclick="hardRestartFromDebug()" class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition cursor-pointer">
-                                ⚡ Hard Restart
+                            <button onclick="hardRestartFromDebug()" class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                <span>Hard Restart</span>
                             </button>
                         </div>
                     </div>
@@ -915,7 +924,7 @@
                 <!-- Section 3: Chat Lock & Security Architecture -->
                 <div class="p-4 rounded-xl bg-white/[0.03] border border-zinc-800 space-y-3">
                     <div class="flex items-center space-x-2">
-                        <span class="text-base">🛡️</span>
+                        <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                         <span class="font-bold text-white text-sm">Kiểm Tra Khóa Chat (Chat Lock) &amp; Bảo Mật Dữ Liệu</span>
                     </div>
 
@@ -966,7 +975,7 @@
                 <div class="p-4 rounded-xl bg-white/[0.03] border border-zinc-800 space-y-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2">
-                            <span class="text-base">📋</span>
+                            <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                             <span class="font-bold text-white text-sm">Nhật Ký Sự Kiện Hệ Thống (Audit Trail)</span>
                         </div>
                         <span class="text-[10px] text-gray-400 font-mono">15 sự kiện gần nhất</span>
@@ -1000,8 +1009,8 @@
             <!-- Modal Header -->
             <div class="p-5 border-b border-zinc-800 flex items-center justify-between bg-black/40">
                 <div class="flex items-center space-x-3">
-                    <div class="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 text-lg">
-                        🧹
+                    <div class="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </div>
                     <div>
                         <h3 class="text-base font-bold text-white tracking-tight">Dọn Dẹp Kho Tài Khoản Pool</h3>
@@ -1015,8 +1024,8 @@
 
             <!-- Modal Content Body -->
             <div class="p-6 space-y-4 text-sm bg-black/20">
-                <div class="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start space-x-2">
-                    <span class="text-base">⚠️</span>
+                <div class="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start space-x-2.5">
+                    <svg class="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     <span>Lưu ý: Thao tác dọn dẹp sẽ xóa vĩnh viễn tài khoản và <strong>xóa cả file cookie vật lý (.txt)</strong> tương ứng trong thư mục Cookies.</span>
                 </div>
 
@@ -1025,7 +1034,7 @@
                     <div class="flex items-start justify-between">
                         <div>
                             <div class="flex items-center space-x-2">
-                                <span class="text-base">🗑️</span>
+                                <svg class="w-4 h-4 text-zinc-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 <span class="font-bold text-white text-sm">Xóa tài khoản ≥100% / Hết Quota</span>
                             </div>
                             <p class="text-xs text-gray-400 mt-1">Dọn sạch các tài khoản đã dùng 100% quota hoặc đã cạn kiệt (EXHAUSTED).</p>
@@ -1042,7 +1051,7 @@
                     <div class="flex items-start justify-between">
                         <div>
                             <div class="flex items-center space-x-2">
-                                <span class="text-base">❌</span>
+                                <svg class="w-4 h-4 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 <span class="font-bold text-white text-sm">Xóa tài khoản hỏng / EXPIRED</span>
                             </div>
                             <p class="text-xs text-gray-400 mt-1">Dọn sạch các tài khoản lỗi token, session hết hạn không thể cấp mới.</p>
@@ -1073,8 +1082,8 @@
             <!-- Modal Header -->
             <div class="p-5 border-b border-zinc-800 flex items-center justify-between bg-black/40">
                 <div class="flex items-center space-x-3">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg">
-                        🚀
+                    <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
                     </div>
                     <div>
                         <h3 class="text-base font-bold text-white tracking-tight">Cập Nhật Phiên Bản (Auto-Updater)</h3>
@@ -1102,7 +1111,7 @@
                 <!-- Update Info Card (Hidden by default) -->
                 <div id="updater-info-card" class="hidden p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
                     <div class="flex items-center justify-between">
-                        <span class="font-bold text-emerald-300 text-sm">🎉 Có Bản Cập Nhật Mới!</span>
+                        <span class="font-bold text-emerald-300 text-sm">Có Bản Cập Nhật Mới!</span>
                         <span id="updater-latest-ver" class="px-2 py-0.5 rounded bg-emerald-500/30 text-white font-mono text-xs font-bold">v2.5.0</span>
                     </div>
                     <div class="text-xs text-gray-300">
@@ -1124,13 +1133,16 @@
                 <!-- Action Buttons -->
                 <div class="flex items-center space-x-3 pt-2">
                     <button onclick="checkUpdates(true)" id="btn-updater-check" class="flex-1 py-2 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition border border-zinc-800 flex items-center justify-center space-x-1.5 cursor-pointer">
-                        <span>🔍 Kiểm Tra Bản Mới</span>
+                        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <span>Kiểm Tra Bản Mới</span>
                     </button>
                     <button onclick="downloadUpdate()" id="btn-updater-download" class="hidden flex-1 py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-1.5 cursor-pointer">
-                        <span>📥 Tải Bản Cập Nhật</span>
+                        <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>Tải Bản Cập Nhật</span>
                     </button>
                     <button onclick="applyUpdate()" id="btn-updater-apply" class="hidden flex-1 py-2 px-4 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
-                        <span>⚡ Cài Đặt &amp; Khởi Động Lại</span>
+                        <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        <span>Cài Đặt &amp; Khởi Động Lại</span>
                     </button>
                 </div>
             </div>
@@ -1146,8 +1158,8 @@
             <!-- Top Titlebar with Search Bar & Close Button -->
             <div class="px-5 py-3 border-b border-zinc-800 bg-[#111111] flex items-center justify-between gap-4 flex-shrink-0">
                 <div class="flex items-center space-x-3 flex-shrink-0">
-                    <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-200 font-mono text-sm shadow-sm">
-                        ⚙️
+                    <div class="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-300 font-mono text-sm shadow-sm">
+                        <svg class="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     </div>
                     <div>
                         <div class="flex items-center space-x-2">
@@ -1162,7 +1174,7 @@
                 <div class="flex-1 max-w-md mx-4 hidden md:block">
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 text-xs">
-                            🔍
+                            <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                         </span>
                         <input type="text" id="settings-search-input" onkeyup="filterSettings(this.value)" placeholder="Tìm kiếm cài đặt Cursor (Theme, Tab, Proxy, Model...)" class="w-full pl-9 pr-12 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-zinc-500 transition">
                         <span class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
@@ -1187,41 +1199,41 @@
                 <aside class="w-60 sm:w-64 flex-shrink-0 bg-[#111111] border-r border-zinc-800 p-3 overflow-y-auto custom-scrollbar flex flex-col justify-between select-none">
                     <div class="space-y-4">
                         
-                        <!-- Group 1: Authentic Cursor IDE Settings (8 Categories) -->
+                        <!-- Group 1: Authentic Cursor IDE Settings -->
                         <div>
                             <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 px-3 block mb-1.5">Cursor Core Settings</span>
                             <div class="space-y-0.5">
                                 <button onclick="switchSettingsTab('general')" id="tab-btn-general" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-semibold w-full text-left transition text-white bg-zinc-800 border border-zinc-700 shadow-sm">
-                                    <span class="text-sm">⚙️</span>
-                                    <span>General (Khởi Động &amp; Privacy)</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                    <span class="truncate">General (Khởi Động &amp; Privacy)</span>
+                                </button>
+                                <button onclick="switchSettingsTab('models')" id="tab-btn-models" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                    <span class="truncate">Mô Hình AI (Grok 4.6)</span>
+                                </button>
+                                <button onclick="switchSettingsTab('features')" id="tab-btn-features" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                    <span class="truncate">Cursor Tab (CPP)</span>
+                                </button>
+                                <button onclick="switchSettingsTab('composer')" id="tab-btn-composer" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    <span class="truncate">Composer &amp; Agent</span>
                                 </button>
                                 <button onclick="switchSettingsTab('appearance')" id="tab-btn-appearance" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🎨</span>
-                                    <span>Appearance (Theme &amp; Font)</span>
-                                </button>
-                                <button onclick="switchSettingsTab('agent')" id="tab-btn-agent" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🤖</span>
-                                    <span>Agent (Models &amp; Composer)</span>
-                                </button>
-                                <button onclick="switchSettingsTab('git_prs')" id="tab-btn-git_prs" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🐙</span>
-                                    <span>Git &amp; PRs</span>
-                                </button>
-                                <button onclick="switchSettingsTab('worktrees')" id="tab-btn-worktrees" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🌲</span>
-                                    <span>Worktrees (Đa Nhánh)</span>
-                                </button>
-                                <button onclick="switchSettingsTab('browser_network')" id="tab-btn-browser_network" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🌐</span>
-                                    <span>Browser &amp; Network</span>
-                                </button>
-                                <button onclick="switchSettingsTab('tab')" id="tab-btn-tab" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">⚡</span>
-                                    <span>Tab (Cursor Tab CPP)</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4 7 7 0 017-7h4a7 7 0 017 7 4 4 0 01-4 4H7z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9V5a2 2 0 012-2h0a2 2 0 012 2v4"></path></svg>
+                                    <span class="truncate">Appearance (Theme &amp; Font)</span>
                                 </button>
                                 <button onclick="switchSettingsTab('code_intelligence')" id="tab-btn-code_intelligence" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🔍</span>
-                                    <span>Code Intelligence</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                    <span class="truncate">Code Intelligence</span>
+                                </button>
+                                <button onclick="switchSettingsTab('browser_network')" id="tab-btn-browser_network" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                                    <span class="truncate">Browser &amp; Network</span>
+                                </button>
+                                <button onclick="switchSettingsTab('git_prs')" id="tab-btn-git_prs" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7a2 2 0 100-4 2 2 0 000 4zm10 10a2 2 0 100-4 2 2 0 000 4zM8 15a2 2 0 100-4 2 2 0 000 4z"></path></svg>
+                                    <span class="truncate">Git &amp; Worktrees</span>
                                 </button>
                             </div>
                         </div>
@@ -1231,20 +1243,20 @@
                             <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 px-3 block mb-1.5">Công Cụ Quản Trị</span>
                             <div class="space-y-0.5">
                                 <button onclick="switchSettingsTab('profiles')" id="tab-btn-profiles" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">📁</span>
-                                    <span>Hồ Sơ &amp; Đa Acc</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                    <span class="truncate">Hồ Sơ &amp; Đa Acc</span>
                                 </button>
                                 <button onclick="switchSettingsTab('hardware')" id="tab-btn-hardware" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🎲</span>
-                                    <span>Hardware IDs Spoofer</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                                    <span class="truncate">Hardware IDs Spoofer</span>
                                 </button>
                                 <button onclick="switchSettingsTab('autoswitch')" id="tab-btn-autoswitch" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">🔄</span>
-                                    <span>Đổi Acc &amp; Tiếp Tục</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    <span class="truncate">Đổi Acc &amp; Tiếp Tục</span>
                                 </button>
                                 <button onclick="switchSettingsTab('cursorrules')" id="tab-btn-cursorrules" class="sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <span class="text-sm">📝</span>
-                                    <span>Rules AI (.cursorrules)</span>
+                                    <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <span class="truncate">Rules AI (.cursorrules)</span>
                                 </button>
                             </div>
                         </div>
@@ -1254,22 +1266,22 @@
                             <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-gray-500 px-3 block mb-1.5">Hệ Thống &amp; Cập Nhật</span>
                             <div class="space-y-0.5">
                                 <button onclick="openUpdateModal()" id="btn-update-trigger" class="sidebar-tab-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <div class="flex items-center space-x-2.5">
-                                        <span class="text-sm">🔄</span>
-                                        <span>Cập Nhật Phần Mềm</span>
+                                    <div class="flex items-center space-x-2.5 min-w-0">
+                                        <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>
+                                        <span class="truncate">Cập Nhật Phần Mềm</span>
                                     </div>
-                                    <span id="update-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">Mới</span>
+                                    <span id="update-badge" class="hidden text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold flex-shrink-0">Mới</span>
                                     <span id="update-indicator-ping" class="hidden"></span>
                                     <span id="update-indicator-dot" class="hidden"></span>
                                 </button>
                                 <button onclick="openDebugModal()" id="btn-debug-modal" class="sidebar-tab-btn flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold w-full text-left transition text-gray-400 hover:text-white hover:bg-white/[0.04]">
-                                    <div class="flex items-center space-x-2.5">
-                                        <span class="text-sm">⚡</span>
-                                        <span>Chẩn Đoán &amp; Bảng Debug</span>
+                                    <div class="flex items-center space-x-2.5 min-w-0">
+                                        <svg class="w-4 h-4 flex-shrink-0 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                                        <span class="truncate">Chẩn Đoán Hệ Thống</span>
                                     </div>
-                                    <div id="keyboard-status-badge" class="flex items-center space-x-1 text-[10px] font-mono text-zinc-400">
+                                    <div id="keyboard-status-badge" class="flex items-center space-x-1 text-[10px] font-mono text-zinc-400 flex-shrink-0">
                                         <span id="keyboard-status-dot" class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                                        <span id="keyboard-status-text">Phím: OK</span>
+                                        <span id="keyboard-status-text">OK</span>
                                     </div>
                                 </button>
                             </div>
@@ -1291,7 +1303,7 @@
                     <div id="settings-tab-general" class="settings-tab-content space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>⚙️</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                                 <span>Cài Đặt Chung &amp; Quyền Riêng Tư (General)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Cấu hình khởi động, hành vi khôi phục cửa sổ, thông báo và bảo mật Telemetry của Cursor IDE.</p>
@@ -1401,8 +1413,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveGeneralSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt General &amp; Privacy
+                            <button onclick="saveGeneralSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt General &amp; Privacy</span>
                             </button>
                         </div>
                     </div>
@@ -1411,8 +1424,8 @@
                     <div id="settings-tab-appearance" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🎨</span>
-                                <span>Giao Diện & Trình Soạn Thảo (Appearance)</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4 7 7 0 017-7h4a7 7 0 017 7 4 4 0 01-4 4H7z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9V5a2 2 0 012-2h0a2 2 0 012 2v4"></path></svg>
+                                <span>Giao Diện &amp; Trình Soạn Thảo (Appearance)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Cấu hình giao diện thuần đen (Pure Dark Theme), phông chữ lập trình, minimap và hành vi soạn thảo.</p>
                         </div>
@@ -1493,8 +1506,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveEditorSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt Giao Diện (Appearance)
+                            <button onclick="saveEditorSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt Giao Diện (Appearance)</span>
                             </button>
                         </div>
                     </div>
@@ -1503,8 +1517,8 @@
                     <div id="settings-tab-profiles" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>📁</span>
-                                <span>Quản Lý Hồ Sơ Cấu Hình (Config Profiles) & Đa Tài Khoản</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                <span>Quản Lý Hồ Sơ Cấu Hình (Config Profiles) &amp; Đa Tài Khoản</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Đồng bộ tức thời các mẫu cấu hình cho Cursor và toàn bộ tài khoản pool trong pool.</p>
                         </div>
@@ -1520,10 +1534,11 @@
                                 </div>
                                 <div class="flex items-end space-x-2 pt-1 sm:pt-0">
                                     <button onclick="saveCurrentAsNewProfile()" class="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer">
-                                        <span>➕ Lưu Thành Profile Mới</span>
+                                        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        <span>Lưu Thành Profile Mới</span>
                                     </button>
-                                    <button onclick="deleteSelectedProfile()" id="btn-delete-profile" class="px-3 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 text-xs font-bold transition cursor-pointer" title="Xóa profile này">
-                                        🗑️
+                                    <button onclick="deleteSelectedProfile()" id="btn-delete-profile" class="px-3 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 text-xs font-bold transition cursor-pointer flex items-center justify-center" title="Xóa profile này">
+                                        <svg class="w-4 h-4 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </div>
                             </div>
@@ -1564,11 +1579,11 @@
                             <!-- Big Action Buttons -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 font-sans">
                                 <button onclick="applyProfileToCurrentCursor()" class="p-3.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center justify-center space-x-2">
-                                    <span>⚡</span>
+                                    <svg class="w-4 h-4 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                     <span>Áp Dụng Cho Cursor Ngay Bây Giờ</span>
                                 </button>
                                 <button onclick="applyProfileToAllAccounts()" class="p-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700 text-xs font-semibold shadow-sm transition cursor-pointer flex items-center justify-center space-x-2">
-                                    <span>👥</span>
+                                    <svg class="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                     <span>Áp Dụng Cho Toàn Bộ Tài Khoản Pool</span>
                                 </button>
                             </div>
@@ -1576,14 +1591,17 @@
                             <!-- Secondary Actions -->
                             <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-zinc-800 text-xs font-sans">
                                 <button onclick="setGlobalDefaultProfile()" class="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-zinc-800 transition cursor-pointer flex items-center space-x-1.5">
-                                    <span>🌟 Đặt Profile Này Làm Mặc Định Toàn Cục</span>
+                                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+                                    <span>Đặt Profile Này Làm Mặc Định Toàn Cục</span>
                                 </button>
                                 <div class="flex items-center space-x-2">
                                     <button onclick="exportProfilesJson()" class="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-zinc-800 transition cursor-pointer flex items-center space-x-1.5">
-                                        <span>📤 Xuất File JSON</span>
+                                        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                        <span>Xuất File JSON</span>
                                     </button>
                                     <label class="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-zinc-800 transition cursor-pointer flex items-center space-x-1.5">
-                                        <span>📥 Nhập File JSON</span>
+                                        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                        <span>Nhập File JSON</span>
                                         <input type="file" id="input-import-profile" accept=".json" onchange="importProfilesJson(event)" class="hidden">
                                     </label>
                                 </div>
@@ -1595,7 +1613,7 @@
                     <div id="settings-tab-models" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🤖</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                                 <span>Mô Hình AI (Grok 4.6 Effort Medium - Free Tier Engine)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Đồng bộ duy nhất mô hình Grok 4.6 hợp lệ cho toàn bộ tài khoản Cursor Free trong hệ thống.</p>
@@ -1603,7 +1621,9 @@
 
                         <!-- Notice Banner: Free Tier Verified -->
                         <div class="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex items-start space-x-3.5">
-                            <span class="text-2xl">🔒</span>
+                            <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 flex-shrink-0 mt-0.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                            </div>
                             <div class="text-xs leading-relaxed">
                                 <strong class="text-white font-bold">Chính Sách Model Cursor Free: Khóa Cứng Grok 4.6 (Effort: Medium)</strong>
                                 <p class="text-gray-300 mt-1">Tài khoản Cursor Free <strong>không được cấp quota</strong> cho các model trả phí khác (Claude 3.5, GPT-4). Việc lựa chọn model khác sẽ khiến Cursor lập tức báo lỗi cạn quota hoặc bị Chat Lock. Toàn bộ tài khoản pool được chỉ định dùng <strong>Grok 4.6 với Thinking Effort: Medium</strong> để coding mượt mà và không bao giờ bị từ chối request.</p>
@@ -1658,7 +1678,7 @@
                                     <span class="text-[10px] font-mono text-zinc-400">cursor.chat.thinkingEffort</span>
                                 </div>
                                 <select id="select-thinking-effort" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-zinc-500">
-                                    <option value="medium" selected>Medium (Khuyên Dùng Cho Free Tier - Vừa Phải & Nhanh)</option>
+                                    <option value="medium" selected>Medium (Khuyên Dùng Cho Free Tier - Vừa Phải &amp; Nhanh)</option>
                                     <option value="high">High (Suy Nghĩ Sâu Tối Đa)</option>
                                     <option value="low">Low (Tối Giản, Phản Hồi Nhanh)</option>
                                 </select>
@@ -1677,8 +1697,8 @@
                         <!-- Custom Model / BYOK (Optional Expandable) -->
                         <details class="glass-card rounded-xl border border-zinc-800 bg-[#181818] overflow-hidden">
                             <summary class="p-4 text-xs font-bold uppercase tracking-wider text-zinc-200 cursor-pointer flex items-center justify-between hover:bg-white/[0.02]">
-                                <span>Tùy Chọn Bổ Sung (Custom Model & BYOK API Keys)</span>
-                                <span class="text-xs text-gray-500">▼ Mở rộng</span>
+                                <span>Tùy Chọn Bổ Sung (Custom Model &amp; BYOK API Keys)</span>
+                                <span class="text-xs text-zinc-500 flex items-center space-x-1"><span>Mở rộng</span><svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></span>
                             </summary>
                             <div class="p-4 border-t border-zinc-800 space-y-3 font-mono text-xs">
                                 <div>
@@ -1703,8 +1723,9 @@
                         </details>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveModelSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt Mô Hình (Grok 4.6)
+                            <button onclick="saveModelSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt Mô Hình (Grok 4.6)</span>
                             </button>
                         </div>
                     </div>
@@ -1713,7 +1734,7 @@
                     <div id="settings-tab-features" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>⚡</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                                 <span>Cursor Tab (Copilot++ Autocomplete)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Đề xuất gợi ý code đa dòng thông minh và chấp nhận từng từ theo thời gian thực.</p>
@@ -1775,8 +1796,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveFeatureSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt Cursor Tab (CPP)
+                            <button onclick="saveFeatureSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt Cursor Tab (CPP)</span>
                             </button>
                         </div>
                     </div>
@@ -1785,8 +1807,8 @@
                     <div id="settings-tab-composer" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🧠</span>
-                                <span>Composer & Autonomous Agent Mode</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                <span>Composer &amp; Autonomous Agent Mode</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Cấu hình chế độ Agent lập trình đa file tự động, áp dụng diffs và chạy terminal.</p>
                         </div>
@@ -1849,8 +1871,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveComposerSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt Composer & Agent
+                            <button onclick="saveComposerSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt Composer &amp; Agent</span>
                             </button>
                         </div>
                     </div>
@@ -1859,8 +1882,8 @@
                     <div id="settings-tab-intelligence" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🔍</span>
-                                <span>Code Intelligence & Codebase Indexing</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                <span>Code Intelligence &amp; Codebase Indexing</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Đánh chỉ mục mã nguồn (Vector Embeddings) và tìm kiếm ngữ nghĩa toàn bộ dự án.</p>
                         </div>
@@ -1907,8 +1930,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveComposerSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cài Đặt Code Intelligence
+                            <button onclick="saveComposerSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cài Đặt Code Intelligence</span>
                             </button>
                         </div>
                     </div>
@@ -1917,8 +1941,8 @@
                     <div id="settings-tab-network" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🌐</span>
-                                <span>Browser & Mạng (Rotating Proxy & Connect-RPC Interceptor)</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                                <span>Browser &amp; Mạng (Rotating Proxy &amp; Connect-RPC Interceptor)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Định tuyến traffic Cursor qua Proxy nội bộ cổng :8999 để chặn lỗi quota và hoán đổi acc tức thời.</p>
                         </div>
@@ -1927,14 +1951,17 @@
                         <div class="glass-card p-4 rounded-2xl border border-zinc-800 bg-[#181818] space-y-3">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center space-x-2.5">
-                                    <span class="text-lg">📡</span>
+                                    <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 flex-shrink-0">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    </div>
                                     <div>
                                         <h5 class="text-xs font-bold text-white uppercase tracking-wider">Kiểm Tra Kết Nối Mạng (Network Diagnostics)</h5>
                                         <p class="text-[11px] text-gray-400">Ping trực tiếp tới máy chủ Cursor Cloud Gateway (api2.cursor.sh) và cổng Proxy nội bộ :8999</p>
                                     </div>
                                 </div>
                                 <button type="button" onclick="testCursorNetwork()" id="btn-network-test" class="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-mono font-bold transition flex items-center space-x-1.5 cursor-pointer">
-                                    <span>⚡ Thử Kết Nối (Ping)</span>
+                                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    <span>Thử Kết Nối (Ping)</span>
                                 </button>
                             </div>
 
@@ -1986,8 +2013,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="saveProxyRoutingSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cấu Hình Định Tuyến Proxy
+                            <button onclick="saveProxyRoutingSettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Lưu Cấu Hình Định Tuyến Proxy</span>
                             </button>
                         </div>
                     </div>
@@ -1996,8 +2024,8 @@
                     <div id="settings-tab-privacy" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🛡️</span>
-                                <span>Quyền Riêng Tư (Privacy) & Ghost Mode</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                                <span>Quyền Riêng Tư (Privacy) &amp; Ghost Mode</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Chặn đứng toàn bộ telemetry gửi về máy chủ và kích hoạt cờ Ghost Mode chống cấm máy.</p>
                         </div>
@@ -2048,8 +2076,9 @@
                         </div>
 
                         <div class="pt-2 flex justify-end">
-                            <button onclick="savePrivacySettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Cập Nhật Quyền Riêng Tư (Privacy)
+                            <button onclick="savePrivacySettings()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span>Cập Nhật Quyền Riêng Tư (Privacy)</span>
                             </button>
                         </div>
                     </div>
@@ -2058,7 +2087,7 @@
                     <div id="settings-tab-hardware" class="settings-tab-content hidden space-y-6 font-mono text-xs">
                         <div class="border-b border-zinc-800 pb-4 font-sans">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🎲</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
                                 <span>Hardware Fingerprint Spoofer (storage.json)</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Thay đổi Machine ID và Mac ID trong storage.json giúp tránh bị Cursor gắn cờ giới hạn máy cứng.</p>
@@ -2084,11 +2113,13 @@
                         </div>
 
                         <div class="pt-4 border-t border-zinc-800 flex items-center justify-between font-sans">
-                            <button onclick="restoreHardwareIds()" id="btn-restore-hw" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold border border-zinc-800 transition cursor-pointer">
-                                ↺ Khôi Phục Bản Gốc
+                            <button onclick="restoreHardwareIds()" id="btn-restore-hw" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold border border-zinc-800 transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                                <span>Khôi Phục Bản Gốc</span>
                             </button>
-                            <button onclick="spoofHardwareIds()" class="px-5 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 text-xs font-semibold transition cursor-pointer">
-                                🎲 Randomize / Fake Toàn Bộ Machine IDs
+                            <button onclick="spoofHardwareIds()" class="px-5 py-2.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/50 text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <span>Randomize / Fake Toàn Bộ Machine IDs</span>
                             </button>
                         </div>
                     </div>
@@ -2097,8 +2128,8 @@
                     <div id="settings-tab-autoswitch" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🔄</span>
-                                <span>Cấu Hình Đổi Tài Khoản, Reset App & Tiếp Tục</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                <span>Cấu Hình Đổi Tài Khoản, Reset App &amp; Tiếp Tục</span>
                             </h4>
                             <p class="text-xs text-gray-400 mt-1">Quy trình tự động hóa hoán đổi tài khoản khi chạm ngưỡng quota hoặc lỗi Chat Lock.</p>
                         </div>
@@ -2139,15 +2170,15 @@
                                 <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Hành vi tiếp tục sau khi nạp tài khoản mới:</label>
                                 
                                 <div class="space-y-3">
-                                    <label class="glass-card p-4 rounded-xl border border-zinc-800 hover:border-emerald-500/40 transition flex items-start space-x-3.5 cursor-pointer block bg-[#181818]">
-                                        <input type="radio" name="auto-resend-action" value="always" id="auto-resend-action-always" class="mt-1 w-4 h-4 accent-emerald-600 cursor-pointer">
+                                    <label class="glass-card p-4 rounded-xl border border-emerald-500/50 hover:border-emerald-500 transition flex items-start space-x-3.5 cursor-pointer block bg-[#181818]">
+                                        <input type="radio" name="auto-resend-action" value="manual" id="auto-resend-action-manual" class="mt-1 w-4 h-4 accent-emerald-500 cursor-pointer" checked>
                                         <div>
                                             <div class="flex items-center space-x-2">
-                                                <span class="text-xs font-bold text-white uppercase tracking-wider">Luôn luôn gửi tin nhắn tiếp tục (Always Resend)</span>
-                                                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-mono font-bold">Luôn gửi</span>
+                                                <span class="text-xs font-bold text-white uppercase tracking-wider">Người dùng tự gửi (Manual Prompt Send)</span>
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-300 font-mono font-bold border border-emerald-500/30">Mặc định</span>
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 leading-relaxed">
-                                                Luôn luôn dán prompt tiếp tục vào Cursor ngay sau khi nạp tài khoản mới, kể cả khi task chưa có dấu hiệu gián đoạn.
+                                                Cursor Manager chỉ nạp tài khoản mới vào Cursor và reload window. Người dùng sẽ tự xem lại ngữ cảnh và gõ tin nhắn tiếp tục.
                                             </p>
                                         </div>
                                     </label>
@@ -2157,7 +2188,7 @@
                                         <div>
                                             <div class="flex items-center space-x-2">
                                                 <span class="text-xs font-bold text-white uppercase tracking-wider">Tự động gửi khi bị gián đoạn (Smart Auto-Resend)</span>
-                                                <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-300 font-mono font-bold border border-emerald-500/30">Khuyên dùng</span>
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400 font-mono font-medium border border-zinc-700">Tùy chọn</span>
                                             </div>
                                             <p class="text-xs text-gray-400 mt-1 leading-relaxed">
                                                 Cursor Manager sẽ chỉ gửi prompt tiếp tục khi phát hiện Cursor gặp lỗi khóa chat / hết quota giữa chừng (chỉ dán thẳng vào Cursor, an toàn tuyệt đối).
@@ -2166,11 +2197,14 @@
                                     </label>
 
                                     <label class="glass-card p-4 rounded-xl border border-zinc-800 hover:border-zinc-600 transition flex items-start space-x-3.5 cursor-pointer block bg-[#141414]">
-                                        <input type="radio" name="auto-resend-action" value="manual" id="auto-resend-action-manual" class="mt-1 w-4 h-4 accent-emerald-500 cursor-pointer">
+                                        <input type="radio" name="auto-resend-action" value="always" id="auto-resend-action-always" class="mt-1 w-4 h-4 accent-emerald-600 cursor-pointer">
                                         <div>
-                                            <span class="text-xs font-bold text-white uppercase tracking-wider">Người dùng tự gửi (Manual Prompt Send)</span>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-xs font-bold text-white uppercase tracking-wider">Luôn luôn gửi tin nhắn tiếp tục (Always Resend)</span>
+                                                <span class="px-2 py-0.5 rounded text-[10px] bg-zinc-800 text-zinc-400 font-mono font-medium border border-zinc-700">Luôn gửi</span>
+                                            </div>
                                             <p class="text-xs text-gray-400 mt-1 leading-relaxed">
-                                                Cursor Manager chỉ nạp tài khoản mới vào Cursor và reload window. Người dùng sẽ tự xem lại ngữ cảnh và gõ tin nhắn tiếp tục.
+                                                Luôn luôn dán prompt tiếp tục vào Cursor ngay sau khi nạp tài khoản mới, kể cả khi task chưa có dấu hiệu gián đoạn.
                                             </p>
                                         </div>
                                     </label>
@@ -2201,10 +2235,12 @@
 
                         <div class="pt-4 border-t border-zinc-800 flex items-center justify-between">
                             <button onclick="testSendContinuePrompt()" id="btn-test-continue" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold border border-zinc-800 transition cursor-pointer flex items-center space-x-1.5">
-                                <span>🧪 Thử Gửi Tiếp Tục Ngay</span>
+                                <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Thử Gửi Tiếp Tục Ngay</span>
                             </button>
-                            <button onclick="saveAutoSwitchConfig()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu Cấu Hình Tiếp Tục
+                            <button onclick="saveAutoSwitchConfig()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                <span>Lưu Cấu Hình Tiếp Tục</span>
                             </button>
                         </div>
                     </div>
@@ -2214,7 +2250,7 @@
                     <div id="settings-tab-git_prs" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🐙</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7a2 2 0 100-4 2 2 0 000 4zm10 10a2 2 0 100-4 2 2 0 000 4zM8 15a2 2 0 100-4 2 2 0 000 4z"></path></svg>
                                 <span>Git &amp; Pull Requests Integration</span>
                             </h4>
                             <p class="text-xs text-zinc-400 mt-1">Cấu hình tự động tạo commit message, trợ lý review PR và bảo vệ nhánh làm việc trong Cursor.</p>
@@ -2257,7 +2293,7 @@
                     <div id="settings-tab-worktrees" class="settings-tab-content hidden space-y-6">
                         <div class="border-b border-zinc-800 pb-4">
                             <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                <span>🌲</span>
+                                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                                 <span>Git Worktrees (Đa Nhánh Cô Lập)</span>
                             </h4>
                             <p class="text-xs text-zinc-400 mt-1">Quản lý không gian làm việc đa nhánh song song mà không cần clone lại toàn bộ repository.</p>
@@ -2291,7 +2327,7 @@
                         <div class="border-b border-zinc-800 pb-4">
                             <div class="flex items-center justify-between">
                                 <h4 class="text-base font-bold text-white tracking-tight flex items-center space-x-2">
-                                    <span>📝</span>
+                                    <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                     <span>Rules Cho AI (.cursorrules)</span>
                                 </h4>
                                 <div class="flex items-center space-x-2">
@@ -2307,8 +2343,9 @@
                         <textarea id="cursorrules-textarea" rows="14" class="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-4 font-mono text-xs text-gray-200 leading-relaxed focus:outline-none focus:border-zinc-500 resize-y custom-scrollbar" placeholder="Nhập các quy tắc .cursorrules..."></textarea>
 
                         <div class="flex justify-end">
-                            <button onclick="saveCursorRules()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer">
-                                💾 Lưu File .cursorrules
+                            <button onclick="saveCursorRules()" class="px-5 py-2.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow-sm transition cursor-pointer flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                <span>Lưu File .cursorrules</span>
                             </button>
                         </div>
                     </div>
@@ -2321,7 +2358,9 @@
     <!-- Toast Notification -->
     <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
         <div class="bg-[#181818] border border-zinc-700 text-zinc-100 px-4 py-2.5 rounded-lg shadow-2xl flex items-center space-x-3 font-mono text-xs">
-            <span id="toast-icon" class="text-lg">✨</span>
+            <span id="toast-icon" class="flex-shrink-0 flex items-center justify-center">
+                <svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </span>
             <span id="toast-msg" class="text-xs sm:text-sm font-semibold">Thông báo</span>
         </div>
     </div>
@@ -2480,10 +2519,26 @@
         restoreCachedActiveProfile();
         updateRealtimeClock();
 
-        function showToast(msg, icon = '✨') {
+        function showToast(msg, type = 'info') {
             const toast = document.getElementById('toast');
-            document.getElementById('toast-msg').textContent = msg;
-            document.getElementById('toast-icon').textContent = icon;
+            if (!toast) return;
+            const cleanMsg = (msg || '').replace(/^[\s\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}]+/u, '').trim();
+            const msgEl = document.getElementById('toast-msg');
+            const iconEl = document.getElementById('toast-icon');
+            if (msgEl) msgEl.textContent = cleanMsg;
+            if (iconEl) {
+                if (type === 'success' || type === '✅' || type === '⚡' || type === '🚀' || type === '🎉' || type === '🌟' || type === '💾' || type === '📝') {
+                    iconEl.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                } else if (type === 'error' || type === '❌' || type === '🗑️') {
+                    iconEl.innerHTML = '<svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+                } else if (type === 'warn' || type === 'warning' || type === '⚠️') {
+                    iconEl.innerHTML = '<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                } else if (type === 'loading' || type === '⏳' || type === '🔄' || type === '🧹' || type === '⏹️' || type === '🔓') {
+                    iconEl.innerHTML = '<svg class="w-4 h-4 animate-spin text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>';
+                } else {
+                    iconEl.innerHTML = '<svg class="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                }
+            }
             toast.classList.remove('translate-y-20', 'opacity-0');
             setTimeout(() => {
                 toast.classList.add('translate-y-20', 'opacity-0');
@@ -2543,9 +2598,9 @@
                 // Phát hiện chuyển đổi trạng thái Cursor IDE (Tắt -> Bật hoặc Bật -> Tắt)
                 if (previousCursorRunning !== null && previousCursorRunning !== isRunning) {
                     if (isRunning) {
-                        showToast('🚀 Cursor IDE vừa được khởi động! Đã tự động đồng bộ.', '⚡');
+                        showToast('Cursor IDE vừa được khởi động! Đã tự động đồng bộ.', 'success');
                     } else {
-                        showToast('⚠️ Cursor IDE đã đóng! Hãy bật Cursor để đồng bộ.', '⚠️');
+                        showToast('Cursor IDE đã đóng! Hãy bật Cursor để đồng bộ.', 'warn');
                     }
                 }
                 previousCursorRunning = isRunning;
@@ -2647,9 +2702,9 @@
                 if (tbody && (!allAccounts || allAccounts.length === 0)) {
                     tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-rose-400 font-sans">
                         <div class="flex flex-col items-center justify-center space-y-2">
-                            <span class="text-base font-bold">⚠️ Không thể tải danh sách tài khoản (${err.message})</span>
+                            <span class="text-base font-bold">Không thể tải danh sách tài khoản (${err.message})</span>
                             <span class="text-xs text-gray-400">Hãy kiểm tra server host hoặc bấm nút dưới để thử lại</span>
-                            <button onclick="loadAccounts()" class="mt-2 px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs font-semibold text-white transition cursor-pointer shadow-sm">🔄 Thử Lại Ngay</button>
+                            <button onclick="loadAccounts()" class="mt-2 px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs font-semibold text-white transition cursor-pointer shadow-sm flex items-center space-x-1.5"><svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Thử Lại Ngay</span></button>
                         </div>
                     </td></tr>`;
                 }
@@ -2822,13 +2877,13 @@
 
             const isStuck = kb && (kb.is_stuck || kb.any_stuck);
             if (isStuck) {
-                badge.className = 'flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-mono font-semibold transition cursor-pointer flex-shrink-0 shadow-sm shadow-rose-500/25';
-                dot.className = 'inline-block w-2 h-2 rounded-full bg-rose-400 animate-ping';
-                txt.textContent = 'Phím: KẸT (Click gỡ)';
+                badge.className = 'inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-mono font-bold flex-shrink-0';
+                dot.className = 'inline-block w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping';
+                txt.textContent = 'Kẹt';
             } else {
-                badge.className = 'flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-semibold transition cursor-pointer flex-shrink-0';
-                dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400';
-                txt.textContent = 'Phím: OK';
+                badge.className = 'inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-mono font-medium flex-shrink-0';
+                dot.className = 'inline-block w-1.5 h-1.5 rounded-full bg-emerald-400';
+                txt.textContent = 'OK';
             }
         }
 
@@ -2966,27 +3021,27 @@
         }
 
         async function reloadWindowFromDebug() {
-            showToast('Đang reload cửa sổ Cursor IDE...', '🔄');
+            showToast('Đang reload cửa sổ Cursor IDE...', 'loading');
             try {
                 const res = await fetch('/api/reload-window', { method: 'POST' });
                 const d = await res.json();
-                if (d.success) showToast('Reload cửa sổ thành công!', '✅');
-                else showToast(d.error || 'Reload thất bại', '❌');
+                if (d.success) showToast('Reload cửa sổ thành công!', 'success');
+                else showToast(d.error || 'Reload thất bại', 'error');
             } catch (e) {
-                showToast('Lỗi kết nối reload', '❌');
+                showToast('Lỗi kết nối reload', 'error');
             }
             setTimeout(refreshDebugInfo, 1000);
         }
 
         async function hardRestartFromDebug() {
-            showToast('Đang Hard Restart Cursor IDE...', '⚡');
+            showToast('Đang Hard Restart Cursor IDE...', 'success');
             try {
                 const res = await fetch('/api/cursor/hard-restart', { method: 'POST' });
                 const d = await res.json();
-                if (d.success) showToast('Hard restart Cursor thành công!', '✅');
-                else showToast(d.error || 'Hard restart thất bại', '❌');
+                if (d.success) showToast('Hard restart Cursor thành công!', 'success');
+                else showToast(d.error || 'Hard restart thất bại', 'error');
             } catch (e) {
-                showToast('Lỗi kết nối hard restart', '❌');
+                showToast('Lỗi kết nối hard restart', 'error');
             }
             setTimeout(refreshDebugInfo, 2000);
         }
@@ -2995,21 +3050,21 @@
             const btn = document.getElementById('btn-unstick-keys');
             const originalText = btn ? btn.innerHTML : '';
             if (btn) {
-                btn.innerHTML = '<span class="animate-spin text-sm">⏳</span><span>Đang gỡ...</span>';
+                btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin text-zinc-400 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Đang gỡ...</span>';
                 btn.disabled = true;
             }
-            showToast('Đang giải phóng toàn bộ phím kẹt (Alt, Ctrl, Shift, Win)...', '🔓');
+            showToast('Đang giải phóng toàn bộ phím kẹt (Alt, Ctrl, Shift, Win)...', 'loading');
             try {
                 const res = await fetch('/api/unstick-keys', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message || 'Đã gỡ kẹt phím thành công!', '✅');
+                    showToast(data.message || 'Đã gỡ kẹt phím thành công!', 'success');
                     updateKeyboardStatusBadge({ is_stuck: false });
                 } else {
-                    showToast('Lỗi khi gỡ phím: ' + (data.error || 'Thử lại sau'), '❌');
+                    showToast('Lỗi khi gỡ phím: ' + (data.error || 'Thử lại sau'), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             } finally {
                 if (btn) {
                     btn.innerHTML = originalText;
@@ -3025,21 +3080,21 @@
                 const data = await res.json();
                 if (data.success && data.token) {
                     await navigator.clipboard.writeText(data.token);
-                    showToast(`Đã copy Access Token của ${data.email || (acc && acc.email) || 'tài khoản'}!`, '🔑');
+                    showToast(`Đã copy Access Token của ${data.email || (acc && acc.email) || 'tài khoản'}!`, 'success');
                 } else {
                     if (acc && acc.access_token && !acc.access_token.startsWith('enc:v1:')) {
                         await navigator.clipboard.writeText(acc.access_token);
-                        showToast(`Đã copy Access Token của ${acc.email || acc.file_name}!`, '🔑');
+                        showToast(`Đã copy Access Token của ${acc.email || acc.file_name}!`, 'success');
                     } else {
-                        showToast(data.error || 'Tài khoản chưa có access token hợp lệ', '⚠️');
+                        showToast(data.error || 'Tài khoản chưa có access token hợp lệ', 'warn');
                     }
                 }
             } catch (err) {
                 if (acc && acc.access_token && !acc.access_token.startsWith('enc:v1:')) {
                     navigator.clipboard.writeText(acc.access_token);
-                    showToast(`Đã copy Access Token của ${acc.email || acc.file_name}!`, '🔑');
+                    showToast(`Đã copy Access Token của ${acc.email || acc.file_name}!`, 'success');
                 } else {
-                    showToast('Không thể kết nối lấy token', '❌');
+                    showToast('Không thể kết nối lấy token', 'error');
                 }
             }
         }
@@ -3048,7 +3103,7 @@
             const email = document.getElementById('active-email').textContent;
             if (email && email !== 'Đang tải...' && email !== 'Chưa đăng nhập Cursor') {
                 navigator.clipboard.writeText(email);
-                showToast(`Đã copy: ${email}`, '📋');
+                showToast(`Đã copy: ${email}`, 'success');
             }
         }
 
@@ -3087,7 +3142,7 @@
         function copyToClipboard(text) {
             if (!text) return;
             navigator.clipboard.writeText(text);
-            showToast(`Đã copy: ${text}`, '📋');
+            showToast(`Đã copy: ${text}`, 'success');
         }
 
         // =========================================================================
@@ -3160,7 +3215,7 @@
         }
 
         async function setAntidetectMode(mode) {
-            showToast(`Đang cập nhật chế độ Ẩn danh: ${mode}...`, '⏳');
+            showToast(`Đang cập nhật chế độ Ẩn danh: ${mode}...`, 'loading');
             try {
                 const res = await fetch('/api/antidetect/config', {
                     method: 'POST',
@@ -3169,47 +3224,47 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã chuyển sang chế độ: ${mode}`, '✅');
+                    showToast(`Đã chuyển sang chế độ: ${mode}`, 'success');
                     await loadAntidetectConfig();
                 } else {
-                    showToast(`Lỗi: ${data.error}`, '❌');
+                    showToast(`Lỗi: ${data.error}`, 'error');
                 }
             } catch(e) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function spoofMachineIDs() {
-            showToast('Đang ngẫu nhiên hóa Machine IDs...', '🎲');
+            showToast('Đang ngẫu nhiên hóa Machine IDs...', 'info');
             try {
                 const res = await fetch('/api/cursor/storage-ids/spoof', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã spoof Machine IDs thành công!', '✅');
+                    showToast('Đã spoof Machine IDs thành công!', 'success');
                     await loadAntidetectConfig();
                     await loadAccounts();
                 } else {
-                    showToast(data.error || 'Lỗi spoof ID', '❌');
+                    showToast(data.error || 'Lỗi spoof ID', 'error');
                 }
             } catch(e) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function restoreMachineIDs() {
-            showToast('Đang khôi phục Machine IDs từ bản sao lưu...', '⏪');
+            showToast('Đang khôi phục Machine IDs từ bản sao lưu...', 'info');
             try {
                 const res = await fetch('/api/cursor/storage-ids/restore', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã khôi phục Machine IDs gốc!', '✅');
+                    showToast('Đã khôi phục Machine IDs gốc!', 'success');
                     await loadAntidetectConfig();
                     await loadAccounts();
                 } else {
-                    showToast(data.error || 'Lỗi khôi phục ID', '❌');
+                    showToast(data.error || 'Lỗi khôi phục ID', 'error');
                 }
             } catch(e) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
@@ -3269,36 +3324,36 @@
 
         async function regenerateSelectedFingerprint() {
             if (!selectedAccountFpId) return;
-            showToast(`Đang sinh vân tay mới cho Account #${selectedAccountFpId}...`, '🔄');
+            showToast(`Đang sinh vân tay mới cho Account #${selectedAccountFpId}...`, 'loading');
             try {
                 const res = await fetch(`/api/antidetect/regenerate/${selectedAccountFpId}`, { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã cấp vân tay mới cho tài khoản!', '✅');
+                    showToast('Đã cấp vân tay mới cho tài khoản!', 'success');
                     await onSelectAccountFingerprint(selectedAccountFpId);
                     await loadAccounts();
                 } else {
-                    showToast(`Lỗi: ${data.error}`, '❌');
+                    showToast(`Lỗi: ${data.error}`, 'error');
                 }
             } catch(e) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function applySelectedFingerprint() {
             if (!selectedAccountFpId) return;
-            showToast(`Đang nạp vân tay của Account #${selectedAccountFpId} vào Cursor...`, '⚡');
+            showToast(`Đang nạp vân tay của Account #${selectedAccountFpId} vào Cursor...`, 'loading');
             try {
                 const res = await fetch(`/api/antidetect/apply/${selectedAccountFpId}`, { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã áp dụng vân tay vào storage.json!', '✅');
+                    showToast('Đã áp dụng vân tay vào storage.json!', 'success');
                     await loadAntidetectConfig();
                 } else {
-                    showToast(`Lỗi: ${data.error}`, '❌');
+                    showToast(`Lỗi: ${data.error}`, 'error');
                 }
             } catch(e) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
@@ -3445,53 +3500,53 @@
         }
 
         async function switchToAccount(id) {
-            showToast('Đang nạp tài khoản vào Cursor & reload window...', '⏳');
+            showToast('Đang nạp tài khoản vào Cursor & reload window...', 'loading');
             try {
                 const res = await fetch(`/api/switch/${id}?reload=true`, { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã nạp thành công và cập nhật Cursor IDE!', '✅');
+                    showToast('Đã nạp thành công và cập nhật Cursor IDE!', 'success');
                     await loadActiveStatus();
                     await loadAccounts();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể chuyển đổi'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể chuyển đổi'), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function autoSwitchBest() {
-            showToast('Đang tìm tài khoản có quota tốt nhất (<100%)...', '🔍');
+            showToast('Đang tìm tài khoản có quota tốt nhất (<100%)...', 'info');
             try {
                 const res = await fetch('/api/auto-switch', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã chuyển sang: ${data.account.email}! Quota: ${data.account.usage_percent}%`, '🎉');
+                    showToast(`Đã chuyển sang: ${data.account.email}! Quota: ${data.account.usage_percent}%`, 'success');
                     await loadActiveStatus();
                     await loadAccounts();
                 } else {
-                    showToast('Không tìm thấy tài khoản khả dụng: ' + (data.error || ''), '❌');
+                    showToast('Không tìm thấy tài khoản khả dụng: ' + (data.error || ''), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function refreshQuota(id) {
-            showToast('Đang truy vấn Quota từ API Cursor...', '⏳');
+            showToast('Đang truy vấn Quota từ API Cursor...', 'loading');
             try {
                 const res = await fetch(`/api/refresh/${id}`, { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Cập nhật Quota thành công: ${data.profile.usagePercent}%`, '✅');
+                    showToast(`Cập nhật Quota thành công: ${data.profile.usagePercent}%`, 'success');
                     await loadAccounts();
                     await loadActiveStatus();
                 } else {
-                    showToast('Thất bại: ' + (data.error || 'Token hoặc Cookie hết hạn'), '❌');
+                    showToast('Thất bại: ' + (data.error || 'Token hoặc Cookie hết hạn'), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối', '❌');
+                showToast('Lỗi kết nối', 'error');
             }
         }
 
@@ -3501,18 +3556,18 @@
         async function openCookieFolder() {
             const btn = document.getElementById('btn-open-cookie-folder');
             if (btn) btn.disabled = true;
-            showToast('Đang mở thư mục Cookies trong Windows Explorer...', '📂');
+            showToast('Đang mở thư mục Cookies trong Windows Explorer...', 'info');
             try {
                 const res = await fetch('/api/cookies/open-folder', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã mở thư mục: ' + (data.path || 'Cookies'), '✅');
+                    showToast('Đã mở thư mục: ' + (data.path || 'Cookies'), 'success');
                     await loadCookiesInfo();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể mở thư mục'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể mở thư mục'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi mở thư mục cookie', '❌');
+                showToast('Lỗi kết nối khi mở thư mục cookie', 'error');
             } finally {
                 if (btn) btn.disabled = false;
             }
@@ -3558,19 +3613,19 @@
         async function quarantineCorruptedCookies() {
             const btn = document.getElementById('btn-quarantine-cookies');
             if (btn) btn.disabled = true;
-            showToast('Đang quét và cách ly các file cookie hỏng...', '🛡️');
+            showToast('Đang quét và cách ly các file cookie hỏng...', 'info');
             try {
                 const res = await fetch('/api/cookies/quarantine', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message, '✅');
+                    showToast(data.message, 'success');
                     await loadCookiesInfo();
                     if (typeof fetchAccounts === 'function') await fetchAccounts();
                 } else {
-                    showToast('Lỗi cách ly: ' + (data.error || 'Thất bại'), '❌');
+                    showToast('Lỗi cách ly: ' + (data.error || 'Thất bại'), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             } finally {
                 if (btn) btn.disabled = false;
             }
@@ -3581,12 +3636,12 @@
             const path = pathEl ? (pathEl.textContent || '').trim() : '';
             if (path && path !== 'Cookies/' && !path.includes('...')) {
                 navigator.clipboard.writeText(path);
-                showToast('Đã chép đường dẫn: ' + path, '📋');
+                showToast('Đã chép đường dẫn: ' + path, 'success');
             } else {
                 fetch('/api/cookies/info').then(r => r.json()).then(d => {
                     if (d.path) {
                         navigator.clipboard.writeText(d.path);
-                        showToast('Đã chép đường dẫn: ' + d.path, '📋');
+                        showToast('Đã chép đường dẫn: ' + d.path, 'success');
                     }
                 }).catch(() => {});
             }
@@ -3605,13 +3660,13 @@
             if (bar) bar.style.width = '10%';
             if (ratio) ratio.textContent = '10%';
 
-            showToast('Đang quét và kích hoạt 12 luồng nạp token song song...', '⚡');
+            showToast('Đang quét và kích hoạt 12 luồng nạp token song song...', 'success');
             try {
                 const res = await fetch('/api/cookies/convert', { method: 'POST' });
                 const data = await res.json();
                 if (!data.success) {
                     if (status) status.textContent = 'Lỗi chuyển đổi: ' + (data.error || 'Thất bại');
-                    showToast('Lỗi: ' + (data.error || 'Không thể chuyển đổi'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể chuyển đổi'), 'error');
                     if (btn) btn.disabled = false;
                     return;
                 }
@@ -3643,7 +3698,7 @@
                             if (bar) bar.style.width = '100%';
                             if (ratio) ratio.textContent = '100%';
                             if (status) status.textContent = `Hoàn tất 12 luồng! Quét ${data.scanned} cookie mới, nạp thành công ${sync.ready_count || data.total_accounts} tokens.`;
-                            showToast(`Hoàn tất nạp token 12 luồng (${sync.ready_count || data.total_accounts} tài khoản sẵn sàng)!`, '🎉');
+                            showToast(`Hoàn tất nạp token 12 luồng (${sync.ready_count || data.total_accounts} tài khoản sẵn sàng)!`, 'success');
 
                             await Promise.allSettled([
                                 loadAccounts(),
@@ -3670,7 +3725,7 @@
                 }, 400);
 
             } catch (e) {
-                showToast('Lỗi kết nối khi chuyển đổi cookies', '❌');
+                showToast('Lỗi kết nối khi chuyển đổi cookies', 'error');
                 if (status) status.textContent = 'Lỗi kết nối server';
                 if (btn) btn.disabled = false;
             }
@@ -3719,7 +3774,7 @@
             for (let i = 0; i < files.length; i++) {
                 formData.append('files', files[i]);
             }
-            showToast(`Đang tải lên ${files.length} file cookies vào thư mục Cookies...`, '📤');
+            showToast(`Đang tải lên ${files.length} file cookies vào thư mục Cookies...`, 'loading');
             try {
                 const res = await fetch('/api/cookies/upload', {
                     method: 'POST',
@@ -3727,30 +3782,30 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã lưu ${data.saved} file & kích hoạt nạp 12 luồng!`, '🎉');
+                    showToast(`Đã lưu ${data.saved} file & kích hoạt nạp 12 luồng!`, 'success');
                     await Promise.allSettled([
                         loadAccounts(),
                         loadActiveStatus(),
                         loadCookiesInfo()
                     ]);
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Tải file thất bại'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Tải file thất bại'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi tải file cookie', '❌');
+                showToast('Lỗi kết nối khi tải file cookie', 'error');
             }
         }
 
         async function scanCookies() {
-            showToast('Đang quét thư mục Cookies...', '📂');
+            showToast('Đang quét thư mục Cookies...', 'info');
             try {
                 const res = await fetch('/api/scan', { method: 'POST' });
                 const data = await res.json();
-                showToast(`Đã quét xong! Thêm mới ${data.added} tài khoản.`, '✅');
+                showToast(`Đã quét xong! Thêm mới ${data.added} tài khoản.`, 'success');
                 await loadAccounts();
                 await loadCookiesInfo();
             } catch (err) {
-                showToast('Lỗi khi quét thư mục', '❌');
+                showToast('Lỗi khi quét thư mục', 'error');
             }
         }
 
@@ -3758,21 +3813,21 @@
             const btn = document.getElementById('btn-hard-restart');
             const originalHtml = btn ? btn.innerHTML : '';
             if (btn) {
-                btn.innerHTML = '<span class="animate-spin text-rose-400">🔄</span><span class="truncate">Reset...</span>';
+                btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin text-rose-400 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span class="truncate">Reset...</span>';
                 btn.disabled = true;
             }
-            showToast('Đang tắt hoàn toàn và khởi động lại Cursor sạch sẽ...', '⏳');
+            showToast('Đang tắt hoàn toàn và khởi động lại Cursor sạch sẽ...', 'loading');
             try {
                 const res = await fetch('/api/cursor/hard-restart', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message || 'Đã Hard Reset & Relaunch Cursor thành công!', '🚀');
+                    showToast(data.message || 'Đã Hard Reset & Relaunch Cursor thành công!', 'success');
                     await loadActiveStatus();
                 } else {
-                    showToast(data.error || 'Lỗi khi khởi động lại Cursor', '❌');
+                    showToast(data.error || 'Lỗi khi khởi động lại Cursor', 'error');
                 }
             } catch (err) {
-                showToast('Lỗi kết nối khi Reset Cursor', '❌');
+                showToast('Lỗi kết nối khi Reset Cursor', 'error');
             } finally {
                 if (btn) {
                     btn.innerHTML = originalHtml;
@@ -3782,17 +3837,17 @@
         }
 
         async function reloadCursorWindow() {
-            showToast('Đang gửi lệnh Reload Window sang Cursor...', '🔄');
+            showToast('Đang gửi lệnh Reload Window sang Cursor...', 'loading');
             try {
                 const res = await fetch('/api/reload-window', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message || 'Đã kích hoạt Reload Cursor thành công!', '🚀');
+                    showToast(data.message || 'Đã kích hoạt Reload Cursor thành công!', 'success');
                 } else {
-                    showToast('Vào Cursor nhấn Ctrl + Shift + P -> "Developer: Reload Window"', '💡');
+                    showToast('Vào Cursor nhấn Ctrl + Shift + P -> "Developer: Reload Window"', 'info');
                 }
             } catch (err) {
-                showToast('Lỗi khi gửi lệnh reload', '❌');
+                showToast('Lỗi khi gửi lệnh reload', 'error');
             }
         }
 
@@ -3862,13 +3917,13 @@
                 if (data.success) {
                     renderUpdaterUI(data);
                     if (data.has_update) {
-                        showToast(`Tìm thấy bản cập nhật v${data.update_info.latest_version}!`, '🚀');
+                        showToast(`Tìm thấy bản cập nhật v${data.update_info.latest_version}!`, 'info');
                         const ping = document.getElementById('update-indicator-ping');
                         const badge = document.getElementById('update-badge');
                         if (ping) ping.classList.remove('hidden');
                         if (badge) badge.classList.remove('hidden');
                     } else if (userInitiated) {
-                        showToast('Bạn đang sử dụng phiên bản mới nhất (v' + data.current_version + ')', '✅');
+                        showToast('Bạn đang sử dụng phiên bản mới nhất (v' + data.current_version + ')', 'success');
                     }
                 } else {
                     if (statusMsg) statusMsg.textContent = 'Lỗi kiểm tra: ' + (data.error || 'Không rõ');
@@ -3901,11 +3956,11 @@
                     if (progBar) progBar.style.width = '100%';
                     if (progPct) progPct.textContent = '100%';
                     renderUpdaterUI(data);
-                    showToast('Đã tải xong và xác thực SHA-256 thành công!', '✅');
+                    showToast('Đã tải xong và xác thực SHA-256 thành công!', 'success');
                 } else {
                     if (statusMsg) statusMsg.textContent = 'Lỗi tải: ' + (data.error || 'Checksum thất bại');
                     if (stateBadge) stateBadge.textContent = 'ERROR';
-                    showToast('Lỗi tải cập nhật: ' + (data.error || 'Lỗi'), '❌');
+                    showToast('Lỗi tải cập nhật: ' + (data.error || 'Lỗi'), 'error');
                 }
             } catch (e) {
                 if (statusMsg) statusMsg.textContent = 'Lỗi kết nối khi tải';
@@ -3916,15 +3971,15 @@
 
         async function applyUpdate() {
             if (!confirm('Ứng dụng sẽ khởi động lại để cài đặt bản cập nhật mới. Tiếp tục?')) return;
-            showToast('Đang khởi chạy tiến trình cập nhật...', '⚡');
+            showToast('Đang khởi chạy tiến trình cập nhật...', 'success');
             try {
                 const res = await fetch('/api/updater/apply', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đang khởi động lại ứng dụng...', '🚀');
+                    showToast('Đang khởi động lại ứng dụng...', 'success');
                     setTimeout(() => window.location.reload(), 3000);
                 } else {
-                    showToast('Lỗi áp dụng cập nhật: ' + (data.error || ''), '❌');
+                    showToast('Lỗi áp dụng cập nhật: ' + (data.error || ''), 'error');
                 }
             } catch (e) {
                 showToast('Tiến trình cập nhật đã bắt đầu ngầm...', 'ℹ️');
@@ -3976,16 +4031,16 @@
             const menu = document.getElementById('cleanup-menu');
             if (menu) menu.classList.add('hidden');
             if (!confirm('Bạn có chắc muốn xóa các tài khoản EXPIRED và xóa file cookie vật lý trong folder Cookies?')) return;
-            showToast('Đang dọn dẹp tài khoản không hợp lệ...', '🧹');
+            showToast('Đang dọn dẹp tài khoản không hợp lệ...', 'loading');
             try {
                 const res = await fetch('/api/accounts/clean-invalid', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã dọn dẹp ${data.deleted} tài khoản hỏng!`, '✅');
+                    showToast(`Đã dọn dẹp ${data.deleted} tài khoản hỏng!`, 'success');
                     await loadAccounts();
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
@@ -3994,33 +4049,33 @@
             const menu = document.getElementById('cleanup-menu');
             if (menu) menu.classList.add('hidden');
             if (!confirm('Bạn có chắc muốn xóa tất cả tài khoản đã dùng ≥ 100% quota và xóa file cookie trong folder Cookies?')) return;
-            showToast('Đang dọn dẹp tài khoản ≥100% quota...', '🧹');
+            showToast('Đang dọn dẹp tài khoản ≥100% quota...', 'loading');
             try {
                 const res = await fetch('/api/accounts/clean-high-usage', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã dọn dẹp ${data.deleted} tài khoản ≥100%!`, '✅');
+                    showToast(`Đã dọn dẹp ${data.deleted} tài khoản ≥100%!`, 'success');
                     await loadAccounts();
                     await loadActiveStatus();
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
         async function deleteSingleAccount(id, name) {
             if (!confirm(`Bạn có chắc muốn xóa "${name}" và xóa file cookie không?`)) return;
-            showToast(`Đang xóa ${name}...`, '🗑️');
+            showToast(`Đang xóa ${name}...`, 'loading');
             try {
                 const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã xóa "${name}" thành công!`, '✅');
+                    showToast(`Đã xóa "${name}" thành công!`, 'success');
                     await loadAccounts();
                     await loadActiveStatus();
                 }
             } catch (err) {
-                showToast('Lỗi kết nối máy chủ', '❌');
+                showToast('Lỗi kết nối máy chủ', 'error');
             }
         }
 
@@ -4030,7 +4085,7 @@
                 await stopCheckAll();
                 return;
             }
-            showToast('Bắt đầu kiểm tra toàn bộ pool...', '🚀');
+            showToast('Bắt đầu kiểm tra toàn bộ pool...', 'success');
             try {
                 const res = await fetch('/api/check-all', { method: 'POST' });
                 const data = await res.json();
@@ -4038,14 +4093,14 @@
                     startPollingProgress();
                 }
             } catch (err) {
-                showToast('Lỗi kết nối', '❌');
+                showToast('Lỗi kết nối', 'error');
             }
         }
 
         async function stopCheckAll() {
             try {
                 await fetch('/api/check-all/stop', { method: 'POST' });
-                showToast('Đã yêu cầu dừng kiểm tra', '⏹️');
+                showToast('Đã yêu cầu dừng kiểm tra', 'loading');
             } catch (err) {
                 console.error(err);
             }
@@ -4056,7 +4111,7 @@
             const iconWrapper = document.getElementById('check-all-icon');
             const btnText = document.getElementById('check-all-text');
             if (banner) banner.classList.remove('hidden');
-            if (iconWrapper) iconWrapper.innerHTML = '<span class="text-xs">⏹️</span>';
+            if (iconWrapper) iconWrapper.innerHTML = '<svg class="w-3.5 h-3.5 text-zinc-400" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
             if (btnText) btnText.textContent = 'Dừng Check';
 
             if (checkAllTimer) clearInterval(checkAllTimer);
@@ -4098,7 +4153,7 @@
                             iconWrapper.innerHTML = '<svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>';
                         }
                         if (btnText) btnText.textContent = 'Kiểm Tra Tất Cả';
-                        showToast(`Hoàn tất! Thành công: ${data.success_count || 0}, Thất bại: ${data.failed_count || 0}`, '🎉');
+                        showToast(`Hoàn tất! Thành công: ${data.success_count || 0}, Thất bại: ${data.failed_count || 0}`, 'success');
                         await loadAccounts();
                         await loadActiveStatus();
 
@@ -4129,9 +4184,9 @@
                 const res = await fetch('/api/auto-rotate/toggle', { method: 'POST' });
                 const data = await res.json();
                 updateAutoRotateUI(data.enabled);
-                showToast(`Auto-Rotate: ${data.enabled ? 'ĐÃ BẬT' : 'ĐÃ TẮT'}`, data.enabled ? '🟢' : '⚪');
+                showToast(`Auto-Rotate: ${data.enabled ? 'ĐÃ BẬT' : 'ĐÃ TẮT'}`, data.enabled ? 'success' : 'info');
             } catch (e) {
-                showToast('Lỗi khi bật/tắt Auto-Rotate', '❌');
+                showToast('Lỗi khi bật/tắt Auto-Rotate', 'error');
             }
         }
 
@@ -4150,7 +4205,7 @@
 
         async function forceRotateAccount() {
             try {
-                showToast('Đang đổi sang tài khoản tiếp theo...', '⏳');
+                showToast('Đang đổi sang tài khoản tiếp theo...', 'loading');
                 const res = await fetch('/api/rotate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -4158,15 +4213,15 @@
                 });
                 const data = await res.json();
                 if (data.success && data.account) {
-                    showToast(`Đã đổi sang: ${data.account.email} (${(data.account.usage_percent || 0).toFixed(1)}%)`, '🔄');
+                    showToast(`Đã đổi sang: ${data.account.email} (${(data.account.usage_percent || 0).toFixed(1)}%)`, 'success');
                     await loadStatus();
                     await loadAccounts();
                     await loadStats();
                 } else {
-                    showToast(data.error || 'Không tìm thấy tài khoản còn quota', '⚠️');
+                    showToast(data.error || 'Không tìm thấy tài khoản còn quota', 'warn');
                 }
             } catch (e) {
-                showToast('Lỗi khi đổi tài khoản: ' + e.message, '❌');
+                showToast('Lỗi khi đổi tài khoản: ' + e.message, 'error');
             }
         }
 
@@ -4183,9 +4238,9 @@
                 const res = await fetch('/api/proxy/toggle', { method: 'POST' });
                 const data = await res.json();
                 updateProxyUI(data.running, data.port || 8999);
-                showToast(`Proxy :${data.port || 8999} ${data.running ? 'ĐÃ KHỞI ĐỘNG' : 'ĐÃ DỪNG'}`, data.running ? '🚀' : '⚪');
+                showToast(`Proxy :${data.port || 8999} ${data.running ? 'ĐÃ KHỞI ĐỘNG' : 'ĐÃ DỪNG'}`, data.running ? 'success' : 'info');
             } catch (e) {
-                showToast('Lỗi khi bật/tắt Proxy', '❌');
+                showToast('Lỗi khi bật/tắt Proxy', 'error');
             }
         }
 
@@ -4222,11 +4277,11 @@
         // =====================================================================
         async function launchCursorApp() {
             try {
-                showToast('Đang gửi lệnh khởi động Cursor IDE...', '🚀');
+                showToast('Đang gửi lệnh khởi động Cursor IDE...', 'success');
                 const res = await fetch('/api/cursor/launch', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message || 'Đã khởi động Cursor thành công!', '✅');
+                    showToast(data.message || 'Đã khởi động Cursor thành công!', 'success');
                     const offlineBanner = document.getElementById('cursor-offline-banner');
                     if (offlineBanner) offlineBanner.classList.add('hidden');
                     offlineNotificationDismissed = true;
@@ -4234,10 +4289,10 @@
                         await loadActiveStatus();
                     }, 2000);
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể khởi động Cursor'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể khởi động Cursor'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi khởi động Cursor', '❌');
+                showToast('Lỗi kết nối khi khởi động Cursor', 'error');
             }
         }
 
@@ -4250,16 +4305,16 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã gán hồ sơ '${profileId}' cho tài khoản #${accountId}!`, '📁');
+                    showToast(`Đã gán hồ sơ '${profileId}' cho tài khoản #${accountId}!`, 'success');
                     await loadAccounts();
                     if (!document.getElementById('cursor-settings-modal').classList.contains('hidden')) {
                         await loadProfilesData();
                     }
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể gán hồ sơ'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể gán hồ sơ'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi gán hồ sơ', '❌');
+                showToast('Lỗi kết nối khi gán hồ sơ', 'error');
             }
         }
 
@@ -4301,11 +4356,11 @@
             });
 
             // Highlight corresponding sidebar button
-            const allBtnKeys = ['general', 'appearance', 'agent', 'git_prs', 'worktrees', 'browser_network', 'tab', 'code_intelligence', 'profiles', 'hardware', 'autoswitch', 'cursorrules'];
+            const allBtnKeys = ['general', 'appearance', 'models', 'features', 'composer', 'agent', 'git_prs', 'worktrees', 'browser_network', 'tab', 'code_intelligence', 'profiles', 'hardware', 'autoswitch', 'cursorrules'];
             allBtnKeys.forEach(k => {
                 const btn = document.getElementById(`tab-btn-${k}`);
                 if (btn) {
-                    if (k === tabName || (target === 'composer' && k === 'agent') || (target === 'features' && k === 'tab') || (target === 'network' && k === 'browser_network') || (target === 'intelligence' && k === 'code_intelligence')) {
+                    if (k === tabName || (target === k) || (target === 'composer' && (k === 'agent' || k === 'composer')) || (target === 'features' && (k === 'tab' || k === 'features')) || (target === 'network' && (k === 'browser_network' || k === 'network')) || (target === 'intelligence' && (k === 'code_intelligence' || k === 'intelligence'))) {
                         btn.className = "sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-semibold w-full text-left transition text-white bg-zinc-800 border border-zinc-700 shadow-sm";
                     } else {
                         btn.className = "sidebar-tab-btn flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium w-full text-left transition text-zinc-400 hover:text-white hover:bg-zinc-800/50";
@@ -4320,7 +4375,7 @@
         async function testCursorNetwork() {
             const btn = document.getElementById('btn-network-test');
             const originalText = btn ? btn.innerHTML : '';
-            if (btn) btn.innerHTML = '<span>⏳ Đang ping...</span>';
+            if (btn) btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin text-zinc-400 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Đang ping...</span>';
 
             const pingEl = document.getElementById('net-gateway-ping');
             const proxyEl = document.getElementById('net-proxy-status');
@@ -4349,12 +4404,12 @@
                             proxyEl.className = "text-amber-400 font-bold";
                         }
                     }
-                    showToast(`Ping Cursor Gateway: ${data.latency_ms}ms | Proxy :8999: ${data.proxy_running ? 'OK' : 'Stopped'}`, data.upstream_ok ? '🌐' : '⚠️');
+                    showToast(`Ping Cursor Gateway: ${data.latency_ms}ms | Proxy :8999: ${data.proxy_running ? 'OK' : 'Stopped'}`, data.upstream_ok ? 'success' : 'warn');
                 } else {
-                    showToast('Lỗi kiểm tra mạng: ' + (data.error || ''), '❌');
+                    showToast('Lỗi kiểm tra mạng: ' + (data.error || ''), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi kiểm tra mạng', '❌');
+                showToast('Lỗi kết nối khi kiểm tra mạng', 'error');
             } finally {
                 if (btn) btn.innerHTML = originalText;
             }
@@ -4407,7 +4462,7 @@
                         const p = profiles[pid];
                         const opt = document.createElement('option');
                         opt.value = pid;
-                        opt.textContent = `${p.name} [${p.badge || 'Preset'}]${data.global_default_profile === pid ? ' ★' : ''}`;
+                        opt.textContent = `${p.name} [${p.badge || 'Preset'}]${data.global_default_profile === pid ? ' [Mặc định]' : ''}`;
                         if (pid === (prevVal || data.active_profile || data.global_default_profile || 'default')) {
                             opt.selected = true;
                         }
@@ -4460,7 +4515,7 @@
         async function applyProfileToCurrentCursor() {
             const select = document.getElementById('select-config-profile');
             const profileId = select ? select.value : 'default';
-            showToast(`Đang áp dụng hồ sơ '${profileId}' vào Cursor IDE...`, '⚡');
+            showToast(`Đang áp dụng hồ sơ '${profileId}' vào Cursor IDE...`, 'loading');
             try {
                 const res = await fetch('/api/cursor/profiles/apply-current', {
                     method: 'POST',
@@ -4469,15 +4524,15 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã nạp toàn bộ cài đặt của profile '${profileId}' vào Cursor!`, '✅');
+                    showToast(`Đã nạp toàn bộ cài đặt của profile '${profileId}' vào Cursor!`, 'success');
                     await loadSettingsData();
                     await loadActiveStatus();
                     await loadProfilesData();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể áp dụng hồ sơ'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể áp dụng hồ sơ'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi áp dụng hồ sơ', '❌');
+                showToast('Lỗi kết nối khi áp dụng hồ sơ', 'error');
             }
         }
 
@@ -4487,7 +4542,7 @@
             const total = cachedProfilesData ? (cachedProfilesData.total_accounts || 266) : 266;
             if (!confirm(`Bạn có chắc muốn áp dụng hồ sơ '${profileId}' cho TOÀN BỘ ${total} tài khoản trong hệ thống?\n\nMọi tài khoản khi chuyển đổi (thủ công hoặc tự động khi hết quota) sẽ tự động nạp cấu hình này!`)) return;
 
-            showToast(`Đang đồng bộ hồ sơ '${profileId}' cho toàn bộ ${total} tài khoản...`, '👥');
+            showToast(`Đang đồng bộ hồ sơ '${profileId}' cho toàn bộ ${total} tài khoản...`, 'loading');
             try {
                 const res = await fetch('/api/cursor/profiles/apply-all', {
                     method: 'POST',
@@ -4496,16 +4551,16 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã áp dụng thành công hồ sơ '${profileId}' cho ${data.updated_count} tài khoản!`, '🎉');
+                    showToast(`Đã áp dụng thành công hồ sơ '${profileId}' cho ${data.updated_count} tài khoản!`, 'success');
                     await loadAccounts();
                     await loadProfilesData();
                     await loadSettingsData();
                     await loadActiveStatus();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể áp dụng hàng loạt'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể áp dụng hàng loạt'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi áp dụng hàng loạt', '❌');
+                showToast('Lỗi kết nối khi áp dụng hàng loạt', 'error');
             }
         }
 
@@ -4524,11 +4579,11 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã đặt '${profileId}' làm Hồ Sơ Mặc Định Toàn Cục!`, '🌟');
+                    showToast(`Đã đặt '${profileId}' làm Hồ Sơ Mặc Định Toàn Cục!`, 'success');
                     await loadProfilesData();
                 }
             } catch (e) {
-                showToast('Lỗi đặt hồ sơ mặc định', '❌');
+                showToast('Lỗi đặt hồ sơ mặc định', 'error');
             }
         }
 
@@ -4539,7 +4594,7 @@
 
             const profileId = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
             if (!profileId) {
-                showToast('Tên hồ sơ không hợp lệ', '❌');
+                showToast('Tên hồ sơ không hợp lệ', 'error');
                 return;
             }
 
@@ -4590,7 +4645,7 @@
                 quota_threshold: parseFloat(document.getElementById('input-quota-threshold')?.value || 100.0)
             };
 
-            showToast(`Đang lưu hồ sơ mới '${name}'...`, '⏳');
+            showToast(`Đang lưu hồ sơ mới '${name}'...`, 'loading');
             try {
                 const res = await fetch('/api/cursor/profiles/save', {
                     method: 'POST',
@@ -4605,15 +4660,15 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã tạo hồ sơ '${name}' thành công!`, '🎉');
+                    showToast(`Đã tạo hồ sơ '${name}' thành công!`, 'success');
                     await loadProfilesData();
                     document.getElementById('select-config-profile').value = profileId;
                     renderProfileSummary(profileId);
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể lưu hồ sơ'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể lưu hồ sơ'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu hồ sơ', '❌');
+                showToast('Lỗi kết nối khi lưu hồ sơ', 'error');
             }
         }
 
@@ -4637,13 +4692,13 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã xóa hồ sơ '${profileId}' thành công!`, '🗑️');
+                    showToast(`Đã xóa hồ sơ '${profileId}' thành công!`, 'success');
                     await loadProfilesData();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể xóa'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể xóa'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi xóa hồ sơ', '❌');
+                showToast('Lỗi kết nối khi xóa hồ sơ', 'error');
             }
         }
 
@@ -4665,13 +4720,13 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(data.message || 'Đã nhập khẩu hồ sơ thành công!', '📥');
+                    showToast(data.message || 'Đã nhập khẩu hồ sơ thành công!', 'info');
                     await loadProfilesData();
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'File không hợp lệ'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'File không hợp lệ'), 'error');
                 }
             } catch (err) {
-                showToast('Lỗi đọc file JSON hồ sơ', '❌');
+                showToast('Lỗi đọc file JSON hồ sơ', 'error');
             } finally {
                 event.target.value = '';
             }
@@ -4830,13 +4885,13 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã lưu cấu hình AI Models (${model})!`, '✅');
+                    showToast(`Đã lưu cấu hình AI Models (${model})!`, 'success');
                     await loadActiveStatus();
                 } else {
-                    showToast('Lỗi lưu cài đặt model', '❌');
+                    showToast('Lỗi lưu cài đặt model', 'error');
                 }
             } catch (e) {
-                showToast('Lỗi lưu cài đặt model', '❌');
+                showToast('Lỗi lưu cài đặt model', 'error');
             }
         }
 
@@ -4860,12 +4915,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu cấu hình Cursor Tab (CPP) thành công!', '⚡');
+                    showToast('Đã lưu cấu hình Cursor Tab (CPP) thành công!', 'success');
                 } else {
-                    showToast('Lỗi khi lưu tính năng Cursor Tab', '❌');
+                    showToast('Lỗi khi lưu tính năng Cursor Tab', 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu cài đặt Features', '❌');
+                showToast('Lỗi kết nối khi lưu cài đặt Features', 'error');
             }
         }
 
@@ -4887,12 +4942,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu cấu hình Composer & Autonomous Agent!', '🧠');
+                    showToast('Đã lưu cấu hình Composer & Autonomous Agent!', 'info');
                 } else {
-                    showToast('Lỗi khi lưu Composer', '❌');
+                    showToast('Lỗi khi lưu Composer', 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu Composer', '❌');
+                showToast('Lỗi kết nối khi lưu Composer', 'error');
             }
         }
 
@@ -4922,12 +4977,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu cấu hình Giao Diện & Editor!', '🎨');
+                    showToast('Đã lưu cấu hình Giao Diện & Editor!', 'info');
                 } else {
-                    showToast('Lỗi khi lưu Editor', '❌');
+                    showToast('Lỗi khi lưu Editor', 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu Editor', '❌');
+                showToast('Lỗi kết nối khi lưu Editor', 'error');
             }
         }
 
@@ -4946,11 +5001,11 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã ${isRouted ? 'BẬT' : 'TẮT'} định tuyến Cursor qua Proxy (:8999)!`, isRouted ? '🌐' : '⚪');
+                    showToast(`Đã ${isRouted ? 'BẬT' : 'TẮT'} định tuyến Cursor qua Proxy (:8999)!`, isRouted ? 'success' : 'info');
                     await loadActiveStatus();
                 }
             } catch (e) {
-                showToast('Lỗi khi lưu định tuyến Proxy', '❌');
+                showToast('Lỗi khi lưu định tuyến Proxy', 'error');
             }
         }
 
@@ -4970,11 +5025,11 @@
                     if (cfg.auto_resend_action === 'always' || cfg.auto_resend_action === 'force') {
                         const el = document.getElementById('auto-resend-action-always');
                         if (el) el.checked = true;
-                    } else if (cfg.auto_resend_action === 'manual') {
-                        const el = document.getElementById('auto-resend-action-manual');
+                    } else if (cfg.auto_resend_action === 'auto') {
+                        const el = document.getElementById('auto-resend-action-auto');
                         if (el) el.checked = true;
                     } else {
-                        const el = document.getElementById('auto-resend-action-auto');
+                        const el = document.getElementById('auto-resend-action-manual');
                         if (el) el.checked = true;
                     }
                     if (cfg.quota_threshold !== undefined && cfg.quota_threshold !== null) {
@@ -5020,20 +5075,20 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu cấu hình Đổi Acc, Reset App & Tiếp Tục thành công!', '🔄');
+                    showToast('Đã lưu cấu hình Đổi Acc, Reset App & Tiếp Tục thành công!', 'loading');
                     await loadActiveStatus();
                 } else {
-                    showToast('Lỗi khi lưu cấu hình', '❌');
+                    showToast('Lỗi khi lưu cấu hình', 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu cấu hình Auto-Switch', '❌');
+                showToast('Lỗi kết nối khi lưu cấu hình Auto-Switch', 'error');
             }
         }
 
         async function testSendContinuePrompt() {
             const btn = document.getElementById('btn-test-continue');
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<span>⏳ Đang gửi...</span>';
+            btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin text-zinc-400 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Đang gửi...</span>';
             try {
                 const prompt = document.getElementById('input-continue-prompt').value.trim() || 'Tiếp tục';
                 const target = document.getElementById('select-target-mode').value;
@@ -5044,12 +5099,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`Đã gửi tin nhắn "${prompt}" vào ${target.toUpperCase()} Cursor!`, '🚀');
+                    showToast(`Đã gửi tin nhắn "${prompt}" vào ${target.toUpperCase()} Cursor!`, 'success');
                 } else {
-                    showToast('Lỗi gửi: ' + (data.error || 'Cửa sổ Cursor chưa sẵn sàng'), '⚠️');
+                    showToast('Lỗi gửi: ' + (data.error || 'Cửa sổ Cursor chưa sẵn sàng'), 'warn');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi thử gửi tin nhắn', '❌');
+                showToast('Lỗi kết nối khi thử gửi tin nhắn', 'error');
             } finally {
                 btn.innerHTML = originalText;
             }
@@ -5076,12 +5131,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu cấu hình Privacy & Ghost Mode!', '🛡️');
+                    showToast('Đã lưu cấu hình Privacy & Ghost Mode!', 'info');
                 } else {
-                    showToast('Lỗi lưu Privacy: ' + (data.error || ''), '❌');
+                    showToast('Lỗi lưu Privacy: ' + (data.error || ''), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi lưu cấu hình Privacy', '❌');
+                showToast('Lỗi lưu cấu hình Privacy', 'error');
             }
         }
 
@@ -5107,11 +5162,11 @@
                 const res = await fetch('/api/cursor/storage-ids/spoof', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã spoof Machine IDs thành công!', '🎲');
+                    showToast('Đã spoof Machine IDs thành công!', 'info');
                     await loadHardwareData();
                 }
             } catch (e) {
-                showToast('Lỗi khi spoof Hardware IDs', '❌');
+                showToast('Lỗi khi spoof Hardware IDs', 'error');
             }
         }
 
@@ -5125,7 +5180,7 @@
                     await loadHardwareData();
                 }
             } catch (e) {
-                showToast('Lỗi khi khôi phục', '❌');
+                showToast('Lỗi khi khôi phục', 'error');
             }
         }
 
@@ -5150,12 +5205,12 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Đã lưu file .cursorrules thành công!', '💾');
+                    showToast('Đã lưu file .cursorrules thành công!', 'success');
                 } else {
-                    showToast('Lỗi: ' + (data.error || 'Không thể lưu'), '❌');
+                    showToast('Lỗi: ' + (data.error || 'Không thể lưu'), 'error');
                 }
             } catch (e) {
-                showToast('Lỗi kết nối khi lưu .cursorrules', '❌');
+                showToast('Lỗi kết nối khi lưu .cursorrules', 'error');
             }
         }
 
@@ -5170,7 +5225,7 @@
                 template = `# TypeScript Expert Rules\n- Strict mode enabled: no 'any' types permitted.\n- Prefer interfaces for object contracts and type aliases for unions.\n- Handle promises with proper async/await and try/catch blocks.\n- Ensure all UI states (loading, error, empty) are represented in types.\n`;
             }
             textarea.value = template;
-            showToast(`Đã áp dụng mẫu ${type}! Nhấn Lưu để ghi file.`, '📝');
+            showToast(`Đã áp dụng mẫu ${type}! Nhấn Lưu để ghi file.`, 'success');
         }
 
         let previousActiveEmail = null;
@@ -5184,7 +5239,7 @@
                 const statusData = await loadActiveStatus();
                 if (statusData && statusData.email) {
                     if (previousActiveEmail && previousActiveEmail.toLowerCase() !== statusData.email.toLowerCase()) {
-                        showToast(`🔔 Cursor vừa đổi sang: ${statusData.email} (${Math.round(statusData.usagePercent || 0)}%)!`, '⚡');
+                        showToast(`Cursor vừa đổi sang: ${statusData.email} (${Math.round(statusData.usagePercent || 0)}%)!`, 'info');
                         await loadAccounts();
                     }
                     previousActiveEmail = statusData.email;

@@ -961,7 +961,7 @@ class AccountPoolManager:
             from cursor_settings import CursorSettingsManager
             cfg = CursorSettingsManager().get_auto_switch_config()
         except Exception:
-            cfg = {"reset_mode": "hard_restart", "auto_resend_action": "auto", "continue_prompt": "Tiếp tục", "target_mode": "composer"}
+            cfg = {"reset_mode": "hard_restart", "auto_resend_action": "manual", "continue_prompt": "Tiếp tục", "target_mode": "composer"}
 
         effective_reset_mode = reset_mode or cfg.get("reset_mode", "hard_restart")
         cursor_was_running = False
@@ -1062,7 +1062,7 @@ class AccountPoolManager:
                     from smart_task_filter import SmartTaskCompletionFilter
                     should_continue, filter_reason = SmartTaskCompletionFilter().should_auto_continue(
                         auto_continue=auto_continue,
-                        auto_resend_cfg=cfg.get("auto_resend_action", "auto"),
+                        auto_resend_cfg=cfg.get("auto_resend_action", "manual"),
                         consume=True
                     )
                 except Exception as filter_err:

@@ -450,32 +450,33 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
                                     {"email": "acc3@cascade.com", "access_token": "token3", "has_token": True},
                                 ]):
                                     with patch("cursor_settings.CursorSettingsManager.spoof_storage_ids", return_value={}):
-                                        # Stage 1: Acc 1 runs out of quota, triggers immediate auto-switch
-                                        best1 = mgr.trigger_immediate_auto_switch(reason="Acc 1 429 Quota Exhaustion")
-                                        self.assertIsNotNone(best1)
-                                        self.assertEqual(best1["email"], "acc2@cascade.com")
-                                        self.assertEqual(len(terminated_calls), 1)
-                                        self.assertEqual(len(relaunched_calls), 1)
+                                        with patch("cursor_settings.CursorSettingsManager.get_auto_switch_config", side_effect=lambda: {"reset_mode": "hard_restart", "auto_resend_action": "auto", "continue_prompt": "Tiếp tục", "target_mode": "composer"}):
+                                            # Stage 1: Acc 1 runs out of quota, triggers immediate auto-switch
+                                            best1 = mgr.trigger_immediate_auto_switch(reason="Acc 1 429 Quota Exhaustion")
+                                            self.assertIsNotNone(best1)
+                                            self.assertEqual(best1["email"], "acc2@cascade.com")
+                                            self.assertEqual(len(terminated_calls), 1)
+                                            self.assertEqual(len(relaunched_calls), 1)
 
-                                        time.sleep(2.8)
-                                        self.assertEqual(len(dispatched_prompts), 1)
-                                        self.assertEqual(dispatched_prompts[0]["prompt"], "Tiếp tục")
-                                        self.assertTrue(dispatched_prompts[0]["fresh_session"])
+                                            time.sleep(2.8)
+                                            self.assertEqual(len(dispatched_prompts), 1)
+                                            self.assertEqual(dispatched_prompts[0]["prompt"], "Tiếp tục")
+                                            self.assertTrue(dispatched_prompts[0]["fresh_session"])
 
-                                        # Stage 2: Acc 2 hits quota limit mid-task
-                                        best2 = mgr.trigger_immediate_auto_switch(reason="Acc 2 quota threshold hit")
-                                        self.assertIsNotNone(best2)
-                                        self.assertEqual(best2["email"], "acc3@cascade.com")
-                                        self.assertEqual(len(terminated_calls), 2)
-                                        self.assertEqual(len(relaunched_calls), 2)
+                                            # Stage 2: Acc 2 hits quota limit mid-task
+                                            best2 = mgr.trigger_immediate_auto_switch(reason="Acc 2 quota threshold hit")
+                                            self.assertIsNotNone(best2)
+                                            self.assertEqual(best2["email"], "acc3@cascade.com")
+                                            self.assertEqual(len(terminated_calls), 2)
+                                            self.assertEqual(len(relaunched_calls), 2)
 
-                                        time.sleep(2.8)
-                                        self.assertEqual(len(dispatched_prompts), 2)
+                                            time.sleep(2.8)
+                                            self.assertEqual(len(dispatched_prompts), 2)
 
-                                        # Stage 3: Task completes naturally
-                                        mark_task_completed(source="task_finished")
-                                        should_cont, reason = SmartTaskCompletionFilter().should_auto_continue()
-                                        self.assertFalse(should_cont, f"Natural completion must suppress auto-continue: {reason}")
+                                            # Stage 3: Task completes naturally
+                                            mark_task_completed(source="task_finished")
+                                            should_cont, reason = SmartTaskCompletionFilter().should_auto_continue()
+                                            self.assertFalse(should_cont, f"Natural completion must suppress auto-continue: {reason}")
 
         shutil.rmtree(test_dir, ignore_errors=True)
 
