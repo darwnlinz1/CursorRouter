@@ -1,0 +1,7 @@
+{
+  "name": "cyber-os-2077",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/cyberos-core.test.js"
+  }
+}

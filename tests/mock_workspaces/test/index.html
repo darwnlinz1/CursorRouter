@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYBER-OS 2077</title>
+<style>
+:root {
+  --void: #0a0c14;
+  --cyan: #00f3ff;
+  --magenta: #ff0055;
+  --amber: #ffb800;
+  --glass: rgba(8, 12, 24, 0.78);
+  --panel: rgba(12, 16, 32, 0.92);
+  --text: #e8f6ff;
+  --dim: #7aa0b8;
+  --taskbar-h: 48px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: "Segoe UI", Rajdhani, Orbitron, system-ui, sans-serif;
+  background: var(--void);
+  color: var(--text);
+  user-select: none;
+}
+#desktop {
+  position: relative;
+  width: 100%;
+  height: calc(100% - var(--taskbar-h));
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 700px at 10% 0%, rgba(0,243,255,0.08), transparent 55%),
+    radial-gradient(900px 600px at 90% 80%, rgba(255,0,85,0.10), transparent 50%),
+    linear-gradient(180deg, #070910 0%, #0a0c14 50%, #05060c 100%);
+}
+#desktop::before {
+  content: "";
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,243,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,243,255,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+#scanlines {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+#boot {
+  position: fixed; inset: 0; z-index: 10000;
+  background: #05060c;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px;
+  transition: opacity 0.5s ease;
+}
+#boot.gone { opacity: 0; pointer-events: none; }
+.boot-logo {
+  font-size: 42px; letter-spacing: 8px; font-weight: 800;
+  color: var(--cyan); text-shadow: 0 0 18px var(--cyan), 0 0 40px var(--magenta);
+}
+.boot-bar { width: 320px; height: 6px; background: #111; border: 1px solid var(--cyan); }
+.boot-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--magenta)); box-shadow: 0 0 12px var(--cyan); }
+.boot-sub { color: var(--dim); letter-spacing: 3px; font-size: 12px; }
+
+.icons {
+  position: absolute; top: 24px; left: 18px;
+  display: flex; flex-direction: column; gap: 18px; z-index: 2;
+}
+.desk-icon {
+  width: 92px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; padding: 8px 4px; border-radius: 8px;
+}
+.desk-icon:hover { background: rgba(0,243,255,0.08); box-shadow: 0 0 0 1px rgba(0,243,255,0.25); }
+.desk-icon .glyph {
+  width: 48px; height: 48px; display: grid; place-items: center;
+  border: 1px solid var(--cyan); background: rgba(0,243,255,0.08);
+  color: var(--cyan); font-size: 22px; box-shadow: 0 0 12px rgba(0,243,255,0.25);
+}
+.desk-icon span { font-size: 11px; text-align: center; color: var(--text); text-shadow: 0 1px 4px #000; }
+
+.window {
+  position: absolute;
+  min-width: 360px; min-height: 260px;
+  background: var(--glass);
+  border: 1px solid rgba(0,243,255,0.55);
+  box-shadow: 0 0 0 1px rgba(255,0,85,0.15), 0 18px 50px rgba(0,0,0,0.55), 0 0 28px rgba(0,243,255,0.12);
+  backdrop-filter: blur(18px);
+  display: flex; flex-direction: column;
+  animation: winIn 0.22s cubic-bezier(.2,.8,.2,1);
+}
+.window.minimized { display: none; }
+.window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; }
+@keyframes winIn { from { opacity: 0; transform: scale(0.92) translateY(10px); } to { opacity: 1; transform: none; } }
+.titlebar {
+  height: 34px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 8px 0 12px;
+  background: linear-gradient(90deg, rgba(0,243,255,0.12), rgba(255,0,85,0.08));
+  border-bottom: 1px solid rgba(0,243,255,0.35);
+  cursor: grab;
+}
+.titlebar:active { cursor: grabbing; }
+.title-left { display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 1.5px; color: var(--cyan); }
+.win-btns { display: flex; gap: 6px; }
+.win-btns button {
+  width: 14px; height: 14px; border-radius: 50%; border: 0; cursor: pointer;
+}
+.btn-min { background: var(--amber); }
+.btn-max { background: var(--cyan); }
+.btn-close { background: var(--magenta); }
+.win-body { flex: 1; min-height: 0; position: relative; overflow: hidden; background: rgba(4,6,12,0.55); }
+.rh { position: absolute; z-index: 6; }
+.rh.n { top: -3px; left: 10px; right: 10px; height: 8px; cursor: n-resize; }
+.rh.s { bottom: -3px; left: 10px; right: 10px; height: 8px; cursor: s-resize; }
+.rh.e { right: -3px; top: 10px; bottom: 10px; width: 8px; cursor: e-resize; }
+.rh.w { left: -3px; top: 10px; bottom: 10px; width: 8px; cursor: w-resize; }
+.rh.ne { top: -4px; right: -4px; width: 12px; height: 12px; cursor: ne-resize; }
+.rh.nw { top: -4px; left: -4px; width: 12px; height: 12px; cursor: nw-resize; }
+.rh.se { bottom: -4px; right: -4px; width: 14px; height: 14px; cursor: se-resize; }
+.rh.sw { bottom: -4px; left: -4px; width: 12px; height: 12px; cursor: sw-resize; }
+
+#taskbar {
+  position: fixed; left: 0; right: 0; bottom: 0; height: var(--taskbar-h); z-index: 5000;
+  display: flex; align-items: center; gap: 10px; padding: 0 10px;
+  background: rgba(6,8,16,0.92);
+  border-top: 1px solid rgba(0,243,255,0.4);
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.45);
+  backdrop-filter: blur(16px);
+}
+#start-btn {
+  height: 34px; padding: 0 14px; cursor: pointer;
+  background: linear-gradient(180deg, rgba(0,243,255,0.18), rgba(255,0,85,0.12));
+  border: 1px solid var(--cyan); color: var(--cyan); letter-spacing: 2px; font-weight: 700;
+  box-shadow: 0 0 12px rgba(0,243,255,0.25);
+}
+#start-btn:hover { background: rgba(0,243,255,0.22); }
+#pills { flex: 1; display: flex; gap: 8px; overflow: hidden; }
+.pill {
+  height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 8px;
+  border: 1px solid rgba(0,243,255,0.35); background: rgba(0,243,255,0.06);
+  color: var(--text); font-size: 12px; cursor: pointer; max-width: 180px;
+}
+.pill.active { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0,243,255,0.3); }
+.tray { display: flex; align-items: center; gap: 12px; color: var(--cyan); font-variant-numeric: tabular-nums; font-size: 13px; }
+#vol-btn {
+  width: 34px; height: 28px; border: 1px solid var(--cyan); background: transparent; color: var(--cyan); cursor: pointer;
+}
+#start-menu {
+  position: fixed; left: 8px; bottom: 56px; width: 280px; z-index: 5001;
+  background: var(--panel); border: 1px solid var(--cyan);
+  box-shadow: 0 0 24px rgba(0,243,255,0.2);
+  display: none; padding: 10px;
+}
+#start-menu.open { display: block; }
+#start-menu h3 { font-size: 11px; letter-spacing: 3px; color: var(--magenta); margin-bottom: 8px; }
+.sm-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.sm-item:hover { border-color: var(--cyan); background: rgba(0,243,255,0.08); }
+
+.app-hud { height: 100%; display: flex; flex-direction: column; }
+.app-toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 10px; border-bottom: 1px solid rgba(0,243,255,0.25);
+  font-size: 12px; color: var(--dim);
+}
+.app-toolbar button, .app-toolbar select {
+  background: rgba(0,243,255,0.08); color: var(--cyan); border: 1px solid var(--cyan);
+  padding: 5px 10px; cursor: pointer; font-size: 11px; letter-spacing: 1px;
+}
+.app-toolbar button.on { background: rgba(255,0,85,0.25); border-color: var(--magenta); color: #fff; }
+.app-toolbar input[type=range] { accent-color: var(--cyan); width: 90px; }
+.canvas-wrap { flex: 1; min-height: 0; position: relative; }
+.canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+
+.synth-keys { display: flex; height: 120px; padding: 10px; gap: 6px; }
+.skey {
+  flex: 1; border: 1px solid var(--cyan); background: rgba(0,243,255,0.08);
+  color: var(--cyan); cursor: pointer; font-size: 13px; letter-spacing: 1px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 10px;
+}
+.skey:active, .skey.down { background: var(--cyan); color: #041018; box-shadow: 0 0 18px var(--cyan); }
+
+.term {
+  height: 100%; display: flex; flex-direction: column; font-family: "Consolas", "Courier New", monospace;
+  background: #020308; color: #7cff9a;
+}
+.term-out { flex: 1; overflow: auto; padding: 10px; font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.term-out .err { color: var(--magenta); }
+.term-out .sys { color: var(--cyan); }
+.term-in { display: flex; align-items: center; padding: 8px 10px; border-top: 1px solid #134; }
+.term-in span { color: var(--cyan); margin-right: 8px; }
+.term-in input {
+  flex: 1; background: transparent; border: 0; outline: none; color: #9fffbb;
+  font: inherit; caret-color: #7cff9a;
+}
+.matrix-layer { position: absolute; inset: 0; pointer-events: none; display: none; }
+.matrix-layer.show { display: block; }
+
+.pix-layout { height: 100%; display: grid; grid-template-columns: 1fr 150px; }
+.pix-side { padding: 10px; border-left: 1px solid rgba(0,243,255,0.25); display: flex; flex-direction: column; gap: 8px; }
+.palette { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.swatch { height: 28px; border: 1px solid #223; cursor: pointer; }
+.swatch.sel { outline: 2px solid #fff; }
+.pix-grid {
+  display: grid; grid-template-columns: repeat(16, 1fr); grid-template-rows: repeat(16, 1fr);
+  width: min(100%, 100%); aspect-ratio: 1; margin: auto; max-height: calc(100% - 20px);
+  border: 1px solid var(--cyan); image-rendering: pixelated;
+}
+.pcell { border: 1px solid rgba(255,255,255,0.06); }
+
+.tm { height: 100%; display: grid; grid-template-rows: 160px 1fr; }
+.tm table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tm th, .tm td { padding: 8px 10px; text-align: left; border-bottom: 1px solid rgba(0,243,255,0.12); }
+.tm th { color: var(--cyan); letter-spacing: 1px; }
+.kill {
+  background: transparent; border: 1px solid var(--magenta); color: var(--magenta); padding: 3px 8px; cursor: pointer;
+}
+.hud-stat { color: var(--amber); }
+
+.overlay-go {
+  position: absolute; inset: 0; display: none; place-items: center;
+  background: rgba(0,0,0,0.55); color: var(--magenta); text-align: center; z-index: 4;
+}
+.overlay-go.show { display: grid; }
+.overlay-go h2 { letter-spacing: 4px; text-shadow: 0 0 16px var(--magenta); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div id="boot">
+  <div class="boot-logo">CYBER-OS 2077</div>
+  <div class="boot-bar"><div class="boot-fill" id="bootFill"></div></div>
+  <div class="boot-sub" id="bootMsg">INITIALIZING NEURAL KERNEL…</div>
+</div>
+<div id="desktop">
+  <div class="icons" id="icons"></div>
+</div>
+<div id="start-menu">
+  <h3>APPLICATIONS</h3>
+  <div id="startItems"></div>
+</div>
+<div id="taskbar">
+  <button id="start-btn">START</button>
+  <div id="pills"></div>
+  <div class="tray">
+    <button id="vol-btn" title="Master audio">VOL</button>
+    <div id="clock"></div>
+  </div>
+</div>
+<div id="scanlines"></div>
+
+<script>
+(() => {
+  const APPS = [
+    { id: "shooter", name: "CYBER-SHOOTER", glyph: "▲", w: 720, h: 520, x: 80, y: 40, boot: "CYBER-SHOOTER" },
+    { id: "synth", name: "NEON SYNTH", glyph: "♪", w: 680, h: 500, x: 120, y: 50, boot: "NEON SYNTH" },
+    { id: "term", name: "PIXEL MATRIX", glyph: ">_", w: 640, h: 440, x: 160, y: 70, boot: "TERMINAL" },
+    { id: "pixel", name: "SPRITE EDITOR", glyph: "▦", w: 620, h: 500, x: 200, y: 40, boot: "SPRITE LAB" },
+    { id: "tasks", name: "TASK MANAGER", glyph: "☰", w: 640, h: 480, x: 240, y: 60, boot: "SYS MONITOR" }
+  ];
+
+  const OS = {
+    z: 20,
+    windows: new Map(),
+    focused: null,
+    muted: false,
+    masterVol: 0.7,
+    bootAt: Date.now(),
+    audio: null,
+    master: null
+  };
+
+  const desktop = document.getElementById("desktop");
+  const pills = document.getElementById("pills");
+  const startMenu = document.getElementById("start-menu");
+  const startItems = document.getElementById("startItems");
+  const icons = document.getElementById("icons");
+  const clockEl = document.getElementById("clock");
+  const volBtn = document.getElementById("vol-btn");
+
+  function ensureAudio() {
+    if (OS.audio) return OS.audio;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.value = OS.muted ? 0 : OS.masterVol;
+    master.connect(ctx.destination);
+    OS.audio = ctx;
+    OS.master = master;
+    return ctx;
+  }
+
+  function setMuted(m) {
+    OS.muted = m;
+    if (OS.master) OS.master.gain.value = m ? 0 : OS.masterVol;
+    volBtn.textContent = m ? "MUTE" : "VOL";
+    volBtn.style.borderColor = m ? "#ff0055" : "#00f3ff";
+    volBtn.style.color = m ? "#ff0055" : "#00f3ff";
+  }
+
+  volBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    ensureAudio();
+    setMuted(!OS.muted);
+  });
+
+  function tickClock() {
+    const d = new Date();
+    clockEl.textContent = d.toLocaleTimeString([], { hour12: false }) + "  " + d.toLocaleDateString();
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  APPS.forEach((app) => {
+    const ic = document.createElement("div");
+    ic.className = "desk-icon";
+    ic.innerHTML = `<div class="glyph">${app.glyph}</div><span>${app.name}</span>`;
+    ic.addEventListener("click", () => openApp(app.id));
+    icons.appendChild(ic);
+
+    const sm = document.createElement("div");
+    sm.className = "sm-item";
+    sm.innerHTML = `<div class="glyph" style="width:28px;height:28px;display:grid;place-items:center;border:1px solid #00f3ff;color:#00f3ff">${app.glyph}</div><div>${app.name}</div>`;
+    sm.addEventListener("click", () => { startMenu.classList.remove("open"); openApp(app.id); });
+    startItems.appendChild(sm);
+  });
+
+  document.getElementById("start-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    startMenu.classList.toggle("open");
+  });
+  document.addEventListener("click", () => startMenu.classList.remove("open"));
+  startMenu.addEventListener("click", (e) => e.stopPropagation());
+
+  function bringToFront(id) {
+    const w = OS.windows.get(id);
+    if (!w) return;
+    OS.z += 1;
+    w.el.style.zIndex = OS.z;
+    OS.focused = id;
+    w.el.classList.remove("minimized");
+    renderPills();
+  }
+
+  function renderPills() {
+    pills.innerHTML = "";
+    OS.windows.forEach((w, id) => {
+      const p = document.createElement("button");
+      p.className = "pill" + (OS.focused === id && !w.el.classList.contains("minimized") ? " active" : "");
+      p.textContent = w.app.name;
+      p.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (OS.focused === id && !w.el.classList.contains("minimized")) {
+          w.el.classList.add("minimized");
+          OS.focused = null;
+          renderPills();
+        } else {
+          bringToFront(id);
+        }
+      });
+      pills.appendChild(p);
+    });
+  }
+
+  function closeWindow(id) {
+    const w = OS.windows.get(id);
+    if (!w) return;
+    (w.cleanup || []).forEach((fn) => { try { fn(); } catch (_) {} });
+    w.el.remove();
+    OS.windows.delete(id);
+    if (OS.focused === id) OS.focused = null;
+    renderPills();
+  }
+
+  function openApp(appId) {
+    for (const [id, w] of OS.windows) {
+      if (w.app.id === appId) {
+        bringToFront(id);
+        return;
+      }
+    }
+    const app = APPS.find((a) => a.id === appId);
+    const id = appId + "-" + Date.now();
+    const el = document.createElement("div");
+    el.className = "window";
+    el.style.left = app.x + "px";
+    el.style.top = app.y + "px";
+    el.style.width = app.w + "px";
+    el.style.height = app.h + "px";
+    el.style.zIndex = ++OS.z;
+    el.innerHTML = `
+      <div class="titlebar">
+        <div class="title-left"><span>${app.glyph}</span><span>${app.name}</span></div>
+        <div class="win-btns">
+          <button class="btn-min" title="Minimize"></button>
+          <button class="btn-max" title="Maximize"></button>
+          <button class="btn-close" title="Close"></button>
+        </div>
+      </div>
+      <div class="win-body"></div>
+      <div class="rh n" data-dir="n"></div><div class="rh s" data-dir="s"></div>
+      <div class="rh e" data-dir="e"></div><div class="rh w" data-dir="w"></div>
+      <div class="rh ne" data-dir="ne"></div><div class="rh nw" data-dir="nw"></div>
+      <div class="rh se" data-dir="se"></div><div class="rh sw" data-dir="sw"></div>
+    `;
+    desktop.appendChild(el);
+    const rec = { id, app, el, cleanup: [], maximized: false, prev: null, ram: 24 + Math.floor(Math.random() * 80) };
+    OS.windows.set(id, rec);
+    OS.focused = id;
+
+    el.addEventListener("mousedown", () => bringToFront(id));
+    const bar = el.querySelector(".titlebar");
+    bar.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".win-btns") || rec.maximized) return;
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - r.left, dy = e.clientY - r.top;
+      const move = (ev) => {
+        const maxX = desktop.clientWidth - 80;
+        const maxY = desktop.clientHeight - 34;
+        el.style.left = Math.max(-r.width + 80, Math.min(maxX, ev.clientX - dx)) + "px";
+        el.style.top = Math.max(0, Math.min(maxY, ev.clientY - dy)) + "px";
+      };
+      const up = () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+    });
+
+    el.querySelector(".btn-min").addEventListener("click", (e) => {
+      e.stopPropagation();
+      el.classList.add("minimized");
+      if (OS.focused === id) OS.focused = null;
+      renderPills();
+    });
+    el.querySelector(".btn-max").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!rec.maximized) {
+        rec.prev = { left: el.style.left, top: el.style.top, width: el.style.width, height: el.style.height };
+        rec.maximized = true;
+        el.classList.add("maximized");
+      } else {
+        rec.maximized = false;
+        el.classList.remove("maximized");
+        Object.assign(el.style, rec.prev);
+      }
+    });
+    el.querySelector(".btn-close").addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeWindow(id);
+    });
+
+    el.querySelectorAll(".rh").forEach((h) => {
+      h.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        if (rec.maximized) return;
+        const dir = h.dataset.dir;
+        const startX = e.clientX, startY = e.clientY;
+        const r = el.getBoundingClientRect();
+        const desk = desktop.getBoundingClientRect();
+        const move = (ev) => {
+          let l = r.left - desk.left, t = r.top - desk.top, w = r.width, ht = r.height;
+          const dx = ev.clientX - startX, dy = ev.clientY - startY;
+          if (dir.includes("e")) w = Math.max(360, r.width + dx);
+          if (dir.includes("s")) ht = Math.max(240, r.height + dy);
+          if (dir.includes("w")) { w = Math.max(360, r.width - dx); l = r.left - desk.left + (r.width - w); }
+          if (dir.includes("n")) { ht = Math.max(240, r.height - dy); t = r.top - desk.top + (r.height - ht); }
+          el.style.left = l + "px"; el.style.top = Math.max(0, t) + "px";
+          el.style.width = w + "px"; el.style.height = ht + "px";
+        };
+        const up = () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", up);
+      });
+    });
+
+    const body = el.querySelector(".win-body");
+    const builders = { shooter: buildShooter, synth: buildSynth, term: buildTerm, pixel: buildPixel, tasks: buildTasks };
+    builders[app.id](body, rec);
+    renderPills();
+  }
+
+  /* ───────────── APP 1: CYBER-SHOOTER ───────────── */
+  function buildShooter(root, rec) {
+    root.innerHTML = `
+      <div class="app-hud">
+        <div class="app-toolbar">
+          <span>WASD / ARROWS MOVE · SPACE / CLICK FIRE</span>
+          <span class="hud-stat" id="sc-${rec.id}">SCORE 0</span>
+          <span class="hud-stat" id="lv-${rec.id}">WAVE 1</span>
+          <span class="hud-stat" id="hp-${rec.id}">SHIELD 0</span>
+          <button id="rst-${rec.id}">RESTART</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="cv-${rec.id}"></canvas>
+          <div class="overlay-go" id="go-${rec.id}">
+            <div>
+              <h2>SIGNAL LOST</h2>
+              <div id="gf-${rec.id}">SCORE 0</div>
+              <button id="gr-${rec.id}" style="margin-top:12px;padding:8px 16px;border:1px solid #00f3ff;background:transparent;color:#00f3ff;cursor:pointer">REBOOT COMBAT</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const canvas = root.querySelector(`#cv-${rec.id}`);
+    const ctx = canvas.getContext("2d");
+    const scoreEl = root.querySelector(`#sc-${rec.id}`);
+    const waveEl = root.querySelector(`#lv-${rec.id}`);
+    const hpEl = root.querySelector(`#hp-${rec.id}`);
+    const overlay = root.querySelector(`#go-${rec.id}`);
+    const keys = Object.create(null);
+    let running = true, raf = 0;
+
+    const state = {
+      t: 0, score: 0, wave: 1, over: false,
+      player: { x: 0.5, y: 0.86, w: 28, h: 22, cooldown: 0, multishot: 0, shield: 0 },
+      bullets: [], ebullets: [], enemies: [], rocks: [], parts: [], drops: []
+    };
+
+    function fit() {
+      const r = canvas.parentElement.getBoundingClientRect();
+      canvas.width = Math.max(320, r.width);
+      canvas.height = Math.max(220, r.height);
+    }
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(canvas.parentElement);
+
+    function reset() {
+      Object.assign(state, {
+        t: 0, score: 0, wave: 1, over: false,
+        player: { x: 0.5, y: 0.86, w: 28, h: 22, cooldown: 0, multishot: 0, shield: 0 },
+        bullets: [], ebullets: [], enemies: [], rocks: [], parts: [], drops: []
+      });
+      overlay.classList.remove("show");
+      spawnWave();
+    }
+
+    function spawnWave() {
+      const n = 4 + state.wave * 2;
+      for (let i = 0; i < n; i++) {
+        state.enemies.push({
+          x: 0.08 + (i % 8) * 0.11,
+          y: 0.08 + Math.floor(i / 8) * 0.1,
+          hp: 1 + Math.floor(state.wave / 3),
+          vx: (Math.random() < 0.5 ? -1 : 1) * (0.0006 + state.wave * 0.00012),
+          t: Math.random() * 200
+        });
+      }
+      for (let i = 0; i < 2 + state.wave; i++) {
+        state.rocks.push({
+          x: Math.random(), y: -Math.random() * 0.5,
+          r: 10 + Math.random() * 16,
+          vy: 0.0012 + Math.random() * 0.002,
+          rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.04
+        });
+      }
+    }
+    spawnWave();
+
+    function boom(x, y, c, n) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = 0.5 + Math.random() * 2.4;
+        state.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 28 + Math.random() * 18, c });
+      }
+    }
+
+    function fire() {
+      const p = state.player;
+      if (p.cooldown > 0 || state.over) return;
+      p.cooldown = p.multishot > 0 ? 8 : 12;
+      const W = canvas.width, H = canvas.height;
+      const px = p.x * W, py = p.y * H;
+      const mk = (ox) => state.bullets.push({ x: px + ox, y: py - 16, vy: -9 });
+      if (p.multishot > 0) { mk(-10); mk(0); mk(10); } else mk(0);
+    }
+
+    function hitPlayer() {
+      const p = state.player;
+      if (p.shield > 0) { p.shield -= 1; return; }
+      state.over = true;
+      overlay.classList.add("show");
+      root.querySelector(`#gf-${rec.id}`).textContent = "SCORE " + state.score;
+      boom(p.x * canvas.width, p.y * canvas.height, "#ff0055", 40);
+    }
+
+    function loop() {
+      if (!running) return;
+      raf = requestAnimationFrame(loop);
+      const W = canvas.width, H = canvas.height;
+      const p = state.player;
+      state.t++;
+      ctx.fillStyle = "#05070e";
+      ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 50; i++) {
+        const sx = (i * 97 + state.t * (1 + i % 3)) % W;
+        const sy = (i * 53 + state.t * (2 + i % 4)) % H;
+        ctx.fillStyle = i % 7 === 0 ? "#00f3ff" : "#224";
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+
+      if (!state.over) {
+        const sp = 0.0075;
+        if (keys.ArrowLeft || keys.a || keys.A) p.x -= sp;
+        if (keys.ArrowRight || keys.d || keys.D) p.x += sp;
+        if (keys.ArrowUp || keys.w || keys.W) p.y -= sp;
+        if (keys.ArrowDown || keys.s || keys.S) p.y += sp;
+        p.x = Math.max(0.04, Math.min(0.96, p.x));
+        p.y = Math.max(0.55, Math.min(0.94, p.y));
+        if (keys[" "] || keys.Spacebar) fire();
+        if (p.cooldown > 0) p.cooldown--;
+        if (p.multishot > 0) p.multishot--;
+      }
+
+      const px = p.x * W, py = p.y * H;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.fillStyle = p.shield > 0 ? "#00f3ff" : "#e8f6ff";
+      ctx.shadowColor = "#00f3ff"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(12, 12); ctx.lineTo(0, 6); ctx.lineTo(-12, 12); ctx.closePath(); ctx.fill();
+      if (p.shield > 0) {
+        ctx.strokeStyle = "rgba(0,243,255,0.7)";
+        ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+
+      state.bullets = state.bullets.filter((b) => {
+        b.y += b.vy;
+        ctx.fillStyle = "#00f3ff";
+        ctx.fillRect(b.x - 2, b.y, 4, 10);
+        return b.y > -20;
+      });
+
+      state.enemies.forEach((en) => {
+        en.x += en.vx;
+        if (en.x < 0.05 || en.x > 0.95) en.vx *= -1;
+        en.y += 0.00025 * state.wave;
+        en.t++;
+        if (!state.over && en.t % 90 === 0) {
+          state.ebullets.push({ x: en.x * W, y: en.y * H + 10, vy: 3.2 + state.wave * 0.15 });
+        }
+        const ex = en.x * W, ey = en.y * H;
+        ctx.fillStyle = "#ff0055";
+        ctx.shadowColor = "#ff0055"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(ex, ey - 10); ctx.lineTo(ex + 12, ey + 8); ctx.lineTo(ex - 12, ey + 8); ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0;
+        state.bullets.forEach((b) => {
+          if (Math.hypot(b.x - ex, b.y - ey) < 16) {
+            b.y = -999; en.hp--;
+            boom(ex, ey, "#ffb800", 8);
+            if (en.hp <= 0) {
+              en.dead = true;
+              state.score += 50 * state.wave;
+              boom(ex, ey, "#ff0055", 22);
+              if (Math.random() < 0.18) {
+                state.drops.push({ x: ex, y: ey, kind: Math.random() < 0.5 ? "shield" : "multi" });
+              }
+            }
+          }
+        });
+      });
+      state.enemies = state.enemies.filter((e) => !e.dead && e.y < 1.1);
+
+      state.rocks.forEach((r) => {
+        r.y += r.vy; r.rot += r.vr;
+        if (r.y * H > H + 40) { r.y = -0.1; r.x = Math.random(); }
+        const rx = r.x * W, ry = r.y * H;
+        ctx.save(); ctx.translate(rx, ry); ctx.rotate(r.rot);
+        ctx.strokeStyle = "#ffb800"; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          const rad = r.r * (0.75 + (i % 2) * 0.25);
+          i ? ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad) : ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        ctx.closePath(); ctx.stroke(); ctx.restore();
+        if (!state.over && Math.hypot(px - rx, py - ry) < r.r + 10) {
+          r.y = -1; hitPlayer();
+        }
+        state.bullets.forEach((b) => {
+          if (Math.hypot(b.x - rx, b.y - ry) < r.r) { b.y = -999; boom(rx, ry, "#ffb800", 10); }
+        });
+      });
+
+      state.ebullets = state.ebullets.filter((b) => {
+        b.y += b.vy;
+        ctx.fillStyle = "#ff0055";
+        ctx.fillRect(b.x - 1.5, b.y, 3, 8);
+        if (!state.over && Math.hypot(b.x - px, b.y - py) < 16) { b.y = 9999; hitPlayer(); }
+        return b.y < H + 20;
+      });
+
+      state.drops = state.drops.filter((d) => {
+        d.y += 1.6;
+        ctx.fillStyle = d.kind === "shield" ? "#00f3ff" : "#ffb800";
+        ctx.fillRect(d.x - 6, d.y - 6, 12, 12);
+        if (!state.over && Math.hypot(d.x - px, d.y - py) < 22) {
+          if (d.kind === "shield") p.shield = Math.min(5, p.shield + 2);
+          else p.multishot = 420;
+          return false;
+        }
+        return d.y < H + 10;
+      });
+
+      state.parts = state.parts.filter((pt) => {
+        pt.x += pt.vx; pt.y += pt.vy; pt.life--;
+        ctx.globalAlpha = Math.max(0, pt.life / 30);
+        ctx.fillStyle = pt.c;
+        ctx.fillRect(pt.x, pt.y, 3, 3);
+        ctx.globalAlpha = 1;
+        return pt.life > 0;
+      });
+
+      if (!state.over && state.enemies.length === 0) {
+        state.wave++;
+        spawnWave();
+      }
+      scoreEl.textContent = "SCORE " + state.score;
+      waveEl.textContent = "WAVE " + state.wave;
+      hpEl.textContent = "SHIELD " + p.shield + (p.multishot > 0 ? " · MULTI" : "");
+    }
+
+    const kd = (e) => {
+      if (OS.focused !== rec.id) return;
+      keys[e.key] = true;
+      if (e.key === " " || e.key.startsWith("Arrow")) e.preventDefault();
+    };
+    const ku = (e) => { keys[e.key] = false; };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+    canvas.addEventListener("mousemove", (e) => {
+      const r = canvas.getBoundingClientRect();
+      state.player.x = (e.clientX - r.left) / r.width;
+      state.player.y = Math.max(0.55, (e.clientY - r.top) / r.height);
+    });
+    canvas.addEventListener("mousedown", fire);
+    const restart = () => reset();
+    root.querySelector(`#rst-${rec.id}`).addEventListener("click", restart);
+    root.querySelector(`#gr-${rec.id}`).addEventListener("click", restart);
+    loop();
+    rec.cleanup.push(() => {
+      running = false;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+    });
+  }
+
+  /* ───────────── APP 2: NEON SYNTH ───────────── */
+  function buildSynth(root, rec) {
+    const notes = [
+      { n: "C4", f: 261.63, k: "A" },
+      { n: "D4", f: 293.66, k: "S" },
+      { n: "E4", f: 329.63, k: "D" },
+      { n: "F4", f: 349.23, k: "F" },
+      { n: "G4", f: 392.00, k: "G" },
+      { n: "A4", f: 440.00, k: "H" },
+      { n: "B4", f: 493.88, k: "J" },
+      { n: "C5", f: 523.25, k: "K" }
+    ];
+    root.innerHTML = `
+      <div class="app-hud">
+        <div class="app-toolbar">
+          <span>WAVE</span>
+          <button data-w="sine" class="on">SINE</button>
+          <button data-w="square">SQUARE</button>
+          <button data-w="sawtooth">SAW</button>
+          <button data-w="triangle">TRI</button>
+          <button id="rv-${rec.id}">REVERB</button>
+          <button id="dl-${rec.id}">DELAY</button>
+          <label>GAIN <input type="range" id="gv-${rec.id}" min="0" max="1" step="0.01" value="0.35"></label>
+          <label>FX <input type="range" id="fx-${rec.id}" min="0" max="1" step="0.01" value="0.35"></label>
+        </div>
+        <div class="canvas-wrap"><canvas id="viz-${rec.id}"></canvas></div>
+        <div class="synth-keys" id="keys-${rec.id}"></div>
+      </div>`;
+    const keyBox = root.querySelector(`#keys-${rec.id}`);
+    notes.forEach((nt) => {
+      const b = document.createElement("button");
+      b.className = "skey";
+      b.dataset.f = nt.f;
+      b.innerHTML = `<strong>${nt.n}</strong><small>${nt.k}</small>`;
+      keyBox.appendChild(b);
+    });
+
+    let wave = "sine", reverbOn = false, delayOn = false, analyser = null, raf = 0, alive = true;
+    const voices = new Map();
+    const canvas = root.querySelector(`#viz-${rec.id}`);
+    const vctx = canvas.getContext("2d");
+
+    function graph() {
+      const ctx = ensureAudio();
+      const master = OS.master;
+      const dry = ctx.createGain();
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      const delay = ctx.createDelay(1.0);
+      delay.delayTime.value = 0.28;
+      const fb = ctx.createGain(); fb.gain.value = 0.35;
+      delay.connect(fb); fb.connect(delay);
+      const dGain = ctx.createGain(); dGain.gain.value = 0;
+      delay.connect(dGain);
+
+      const convolver = ctx.createConvolver();
+      const ir = ctx.createBuffer(2, ctx.sampleRate * 1.6, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const d = ir.getChannelData(c);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+      }
+      convolver.buffer = ir;
+      const rGain = ctx.createGain(); rGain.gain.value = 0;
+      dry.connect(convolver); convolver.connect(rGain);
+
+      dry.connect(analyser);
+      analyser.connect(master);
+      rGain.connect(master);
+      dGain.connect(master);
+      dry.connect(delay);
+
+      return { dry, rGain, dGain, delay };
+    }
+    let nodes = null;
+    function rig() {
+      if (!nodes) nodes = graph();
+      const fx = parseFloat(root.querySelector(`#fx-${rec.id}`).value);
+      nodes.rGain.gain.value = reverbOn ? fx : 0;
+      nodes.dGain.gain.value = delayOn ? fx * 0.8 : 0;
+    }
+
+    function startNote(freq, id) {
+      ensureAudio();
+      if (OS.audio.state === "suspended") OS.audio.resume();
+      rig();
+      id = String(id);
+      if (voices.has(id)) return;
+      const ctx = OS.audio;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = wave;
+      osc.frequency.value = freq;
+      const vol = parseFloat(root.querySelector(`#gv-${rec.id}`).value);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + 0.02);
+      osc.connect(g); g.connect(nodes.dry);
+      osc.start();
+      voices.set(id, { osc, g });
+    }
+    function stopNote(id) {
+      id = String(id);
+      const v = voices.get(id);
+      if (!v || !OS.audio) return;
+      const t = OS.audio.currentTime;
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(Math.max(0.0001, v.g.gain.value), t);
+      v.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      v.osc.stop(t + 0.14);
+      voices.delete(id);
+    }
+
+    root.querySelectorAll("[data-w]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        wave = btn.dataset.w;
+        root.querySelectorAll("[data-w]").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+      });
+    });
+    root.querySelector(`#rv-${rec.id}`).addEventListener("click", function () {
+      reverbOn = !reverbOn; this.classList.toggle("on", reverbOn); rig();
+    });
+    root.querySelector(`#dl-${rec.id}`).addEventListener("click", function () {
+      delayOn = !delayOn; this.classList.toggle("on", delayOn); rig();
+    });
+    root.querySelector(`#gv-${rec.id}`).addEventListener("input", () => {
+      if (OS.master && !OS.muted) { /* per-voice uses slider at note-on */ }
+    });
+
+    keyBox.querySelectorAll(".skey").forEach((b) => {
+      const id = b.dataset.f;
+      b.addEventListener("mousedown", () => { b.classList.add("down"); startNote(+b.dataset.f, id); });
+      b.addEventListener("mouseup", () => { b.classList.remove("down"); stopNote(id); });
+      b.addEventListener("mouseleave", () => { b.classList.remove("down"); stopNote(id); });
+    });
+    const map = { a: 0, s: 1, d: 2, f: 3, g: 4, h: 5, j: 6, k: 7 };
+    const kd = (e) => {
+      if (OS.focused !== rec.id) return;
+      const i = map[e.key.toLowerCase()];
+      if (i == null || e.repeat) return;
+      const b = keyBox.children[i];
+      b.classList.add("down");
+      startNote(notes[i].f, notes[i].f);
+    };
+    const ku = (e) => {
+      const i = map[e.key.toLowerCase()];
+      if (i == null) return;
+      keyBox.children[i].classList.remove("down");
+      stopNote(notes[i].f);
+    };
+    window.addEventListener("keydown", kd);
+    window.addEventListener("keyup", ku);
+
+    const data = new Uint8Array(128);
+    function draw() {
+      if (!alive) return;
+      raf = requestAnimationFrame(draw);
+      const r = canvas.parentElement.getBoundingClientRect();
+      if (canvas.width !== r.width || canvas.height !== r.height) {
+        canvas.width = r.width; canvas.height = r.height;
+      }
+      vctx.fillStyle = "#04060c";
+      vctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (analyser) analyser.getByteFrequencyData(data);
+      const n = 48;
+      const bw = canvas.width / n;
+      for (let i = 0; i < n; i++) {
+        const v = analyser ? data[i] / 255 : 0.05;
+        const h = v * canvas.height * 0.9;
+        vctx.fillStyle = i % 3 === 0 ? "#ff0055" : "#00f3ff";
+        vctx.shadowColor = "#00f3ff"; vctx.shadowBlur = 8;
+        vctx.fillRect(i * bw + 2, canvas.height - h, bw - 4, h);
+      }
+      vctx.shadowBlur = 0;
+    }
+    draw();
+    rec.cleanup.push(() => {
+      alive = false;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("keydown", kd);
+      window.removeEventListener("keyup", ku);
+      [...voices.keys()].forEach(stopNote);
+    });
+  }
+
+  /* ───────────── APP 3: TERMINAL ───────────── */
+  function safeCalc(expr) {
+    const src = String(expr).trim();
+    if (!src) throw new Error("empty expression");
+    if (!/^[0-9+\-*/().%\s^eE]+$/.test(src)) throw new Error("illegal characters");
+    const js = src.replace(/\^/g, "**");
+    const val = Function('"use strict"; return (' + js + ")")();
+    if (typeof val !== "number" || !Number.isFinite(val)) throw new Error("not a finite number");
+    return val;
+  }
+
+  function buildTerm(root, rec) {
+    root.innerHTML = `
+      <div class="term" style="position:relative;height:100%">
+        <canvas class="matrix-layer" id="mx-${rec.id}"></canvas>
+        <div class="term-out" id="out-${rec.id}"></div>
+        <div class="term-in"><span>root@cyber-os:~$</span><input id="in-${rec.id}" autocomplete="off" spellcheck="false"></div>
+      </div>`;
+    const out = root.querySelector(`#out-${rec.id}`);
+    const input = root.querySelector(`#in-${rec.id}`);
+    const mx = root.querySelector(`#mx-${rec.id}`);
+    const mctx = mx.getContext("2d");
+    let matrixOn = false, mraf = 0, drops = [];
+    const print = (t, cls) => {
+      const d = document.createElement("div");
+      if (cls) d.className = cls;
+      d.textContent = t;
+      out.appendChild(d);
+      out.scrollTop = out.scrollHeight;
+    };
+    print("CYBER-OS 2077 PIXEL MATRIX  ·  type help", "sys");
+
+    function runMatrix() {
+      const wrap = root.querySelector(".term");
+      const fit = () => { mx.width = wrap.clientWidth; mx.height = wrap.clientHeight; };
+      fit();
+      const cols = Math.floor(mx.width / 14);
+      drops = Array.from({ length: cols }, () => Math.random() * 40);
+      const glyphs = "アイウエオカキクケコｱｲｳｴｵ01CYBEROS#$%";
+      const step = () => {
+        if (!matrixOn) return;
+        mraf = requestAnimationFrame(step);
+        mctx.fillStyle = "rgba(0,0,0,0.08)";
+        mctx.fillRect(0, 0, mx.width, mx.height);
+        mctx.fillStyle = "#00ff66";
+        mctx.font = "14px monospace";
+        drops.forEach((y, i) => {
+          const ch = glyphs[Math.floor(Math.random() * glyphs.length)];
+          mctx.fillText(ch, i * 14, y * 14);
+          drops[i] = y * 14 > mx.height && Math.random() > 0.975 ? 0 : y + 1;
+        });
+      };
+      step();
+    }
+
+    const cmds = {
+      help() {
+        print("help, matrix, calc <expr>, echo <text>, sysinfo, clear, date, whoami");
+      },
+      matrix() {
+        matrixOn = !matrixOn;
+        mx.classList.toggle("show", matrixOn);
+        if (matrixOn) runMatrix();
+        else cancelAnimationFrame(mraf);
+        print(matrixOn ? "matrix rain: ON" : "matrix rain: OFF", "sys");
+      },
+      calc(arg) {
+        try { print(String(safeCalc(arg))); }
+        catch (e) { print("calc error: " + e.message, "err"); }
+      },
+      echo(arg) { print(arg || ""); },
+      sysinfo() {
+        const n = navigator;
+        print("platform: " + n.platform, "sys");
+        print("cores: " + (n.hardwareConcurrency || "?"), "sys");
+        print("memory GiB (approx): " + (n.deviceMemory || "n/a"), "sys");
+        print("screen: " + screen.width + "x" + screen.height + " @" + (window.devicePixelRatio || 1) + "x", "sys");
+        print("lang: " + n.language, "sys");
+        print("userAgent: " + n.userAgent);
+      },
+      clear() { out.innerHTML = ""; },
+      date() { print(new Date().toString(), "sys"); },
+      whoami() { print("root  ·  CYBER-OS 2077", "sys"); }
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const line = input.value;
+      input.value = "";
+      print("root@cyber-os:~$ " + line);
+      const [cmd, ...rest] = line.trim().split(/\s+/);
+      const arg = line.trim().slice((cmd || "").length).trim();
+      if (!cmd) return;
+      if (cmds[cmd]) cmds[cmd](arg, rest);
+      else print("unknown command: " + cmd + "  (try help)", "err");
+    });
+    setTimeout(() => input.focus(), 80);
+    rec.cleanup.push(() => { matrixOn = false; cancelAnimationFrame(mraf); });
+  }
+
+  /* ───────────── APP 4: PIXEL EDITOR ───────────── */
+  const PALETTE = ["#00f3ff", "#ff0055", "#ffb800", "#39ff14", "#7b2cbf", "#ffffff", "#16213e", "#0a0c14"];
+  function buildPixel(root, rec) {
+    const KEY = "cyberos2077-sprite";
+    let grid = Array.from({ length: 16 }, () => Array(16).fill(null));
+    let color = PALETTE[0], tool = "pencil", drawing = false;
+    try {
+      const saved = localStorage.getItem(KEY);
+      if (saved) grid = JSON.parse(saved);
+    } catch (_) {}
+
+    root.innerHTML = `
+      <div class="app-hud">
+        <div class="app-toolbar">
+          <button data-tool="pencil" class="on">PENCIL</button>
+          <button data-tool="fill">FILL</button>
+          <button id="clr-${rec.id}">CLEAR</button>
+          <button id="sv-${rec.id}">SAVE</button>
+          <button id="ex-${rec.id}">EXPORT PNG</button>
+        </div>
+        <div class="pix-layout">
+          <div style="display:grid;place-items:center;padding:12px;min-height:0">
+            <div class="pix-grid" id="pg-${rec.id}"></div>
+          </div>
+          <div class="pix-side">
+            <div style="color:#00f3ff;font-size:11px;letter-spacing:2px">PALETTE</div>
+            <div class="palette" id="pal-${rec.id}"></div>
+            <button id="er-${rec.id}">ERASER</button>
+          </div>
+        </div>
+      </div>`;
+    const pg = root.querySelector(`#pg-${rec.id}`);
+    const pal = root.querySelector(`#pal-${rec.id}`);
+
+    function paintCell(x, y, c) { grid[y][x] = c; render(); }
+    function flood(x, y, target, repl) {
+      if (target === repl) return;
+      const st = [[x, y]];
+      while (st.length) {
+        const [cx, cy] = st.pop();
+        if (cx < 0 || cy < 0 || cx > 15 || cy > 15) continue;
+        if (grid[cy][cx] !== target) continue;
+        grid[cy][cx] = repl;
+        st.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+      }
+    }
+    function render() {
+      [...pg.children].forEach((cell, i) => {
+        const x = i % 16, y = (i / 16) | 0;
+        cell.style.background = grid[y][x] || "transparent";
+      });
+    }
+
+    for (let i = 0; i < 256; i++) {
+      const cell = document.createElement("div");
+      cell.className = "pcell";
+      const x = i % 16, y = (i / 16) | 0;
+      const apply = () => {
+        if (tool === "fill") flood(x, y, grid[y][x], color);
+        else paintCell(x, y, color);
+        render();
+      };
+      cell.addEventListener("mousedown", (e) => { e.preventDefault(); drawing = true; apply(); });
+      cell.addEventListener("mouseenter", () => { if (drawing && tool === "pencil") apply(); });
+      pg.appendChild(cell);
+    }
+    window.addEventListener("mouseup", () => { drawing = false; });
+    render();
+
+    PALETTE.forEach((c, i) => {
+      const s = document.createElement("div");
+      s.className = "swatch" + (i === 0 ? " sel" : "");
+      s.style.background = c;
+      s.addEventListener("click", () => {
+        color = c;
+        pal.querySelectorAll(".swatch").forEach((x) => x.classList.remove("sel"));
+        s.classList.add("sel");
+      });
+      pal.appendChild(s);
+    });
+    root.querySelector(`#er-${rec.id}`).addEventListener("click", () => { color = null; });
+    root.querySelectorAll("[data-tool]").forEach((b) => {
+      b.addEventListener("click", () => {
+        tool = b.dataset.tool;
+        root.querySelectorAll("[data-tool]").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+      });
+    });
+    root.querySelector(`#clr-${rec.id}`).addEventListener("click", () => {
+      grid = Array.from({ length: 16 }, () => Array(16).fill(null));
+      render();
+    });
+    root.querySelector(`#sv-${rec.id}`).addEventListener("click", () => {
+      localStorage.setItem(KEY, JSON.stringify(grid));
+    });
+    root.querySelector(`#ex-${rec.id}`).addEventListener("click", () => {
+      const c = document.createElement("canvas");
+      c.width = 16; c.height = 16;
+      const g = c.getContext("2d");
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (!grid[y][x]) continue;
+        g.fillStyle = grid[y][x];
+        g.fillRect(x, y, 1, 1);
+      }
+      const a = document.createElement("a");
+      a.href = c.toDataURL("image/png");
+      a.download = "cyberos-sprite.png";
+      a.click();
+    });
+  }
+
+  /* ───────────── APP 5: TASK MANAGER ───────────── */
+  function buildTasks(root, rec) {
+    root.innerHTML = `
+      <div class="tm">
+        <div class="canvas-wrap" style="height:160px"><canvas id="hg-${rec.id}"></canvas></div>
+        <div style="overflow:auto">
+          <div class="app-toolbar">
+            <span id="up-${rec.id}" class="hud-stat"></span>
+            <span id="st-${rec.id}" class="hud-stat"></span>
+          </div>
+          <table>
+            <thead><tr><th>PROCESS</th><th>PID</th><th>RAM</th><th>ACTION</th></tr></thead>
+            <tbody id="tb-${rec.id}"></tbody>
+          </table>
+        </div>
+      </div>`;
+    const canvas = root.querySelector(`#hg-${rec.id}`);
+    const ctx = canvas.getContext("2d");
+    const cpuHist = Array(80).fill(12);
+    const memHist = Array(80).fill(30);
+    let cpu = 18, mem = 32, alive = true, raf = 0;
+
+    function draw() {
+      if (!alive) return;
+      raf = requestAnimationFrame(draw);
+      const r = canvas.parentElement.getBoundingClientRect();
+      canvas.width = r.width; canvas.height = r.height;
+      ctx.fillStyle = "#04060c"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const plot = (hist, col) => {
+        ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = 2;
+        hist.forEach((v, i) => {
+          const x = (i / (hist.length - 1)) * canvas.width;
+          const y = canvas.height - (v / 100) * (canvas.height - 10);
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.stroke();
+      };
+      plot(cpuHist, "#00f3ff");
+      plot(memHist, "#ff0055");
+      ctx.font = "11px sans-serif";
+      ctx.fillStyle = "#00f3ff"; ctx.fillText("CPU " + cpu.toFixed(1) + "%", 8, 14);
+      ctx.fillStyle = "#ff0055"; ctx.fillText("MEM " + mem.toFixed(1) + "%", 90, 14);
+    }
+    draw();
+
+    function refresh() {
+      const load = OS.windows.size * 7 + Math.random() * 8;
+      cpu = Math.max(4, Math.min(96, cpu + (load - cpu) * 0.2 + (Math.random() - 0.5) * 6));
+      mem = Math.max(12, Math.min(92, 20 + OS.windows.size * 9 + Math.random() * 5));
+      cpuHist.push(cpu); cpuHist.shift();
+      memHist.push(mem); memHist.shift();
+      const up = Math.floor((Date.now() - OS.bootAt) / 1000);
+      root.querySelector(`#up-${rec.id}`).textContent = "UPTIME " + up + "s";
+      root.querySelector(`#st-${rec.id}`).textContent = "PROCS " + OS.windows.size;
+      const tb = root.querySelector(`#tb-${rec.id}`);
+      tb.innerHTML = "";
+      OS.windows.forEach((w) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${w.app.name}</td><td>${w.id.slice(-6)}</td><td>${w.ram} MB</td><td></td>`;
+        const btn = document.createElement("button");
+        btn.className = "kill";
+        btn.textContent = "KILL";
+        btn.addEventListener("click", () => closeWindow(w.id));
+        tr.lastChild.appendChild(btn);
+        tb.appendChild(tr);
+      });
+    }
+    refresh();
+    const iv = setInterval(refresh, 800);
+    rec.cleanup.push(() => { alive = false; cancelAnimationFrame(raf); clearInterval(iv); });
+  }
+
+  /* boot */
+  const fill = document.getElementById("bootFill");
+  const msg = document.getElementById("bootMsg");
+  const msgs = ["INITIALIZING NEURAL KERNEL…", "MOUNTING HOLO-FS…", "LINKING AUDIO BUS…", "DESKTOP ONLINE"];
+  let p = 0;
+  const bi = setInterval(() => {
+    p += 4 + Math.random() * 8;
+    fill.style.width = Math.min(100, p) + "%";
+    msg.textContent = msgs[Math.min(3, (p / 25) | 0)];
+    if (p >= 100) {
+      clearInterval(bi);
+      const boot = document.getElementById("boot");
+      boot.classList.add("gone");
+      setTimeout(() => boot.remove(), 600);
+    }
+  }, 70);
+})();
+</script>
+</body>
+</html>

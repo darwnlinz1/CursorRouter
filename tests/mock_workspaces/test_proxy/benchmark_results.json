@@ -1,0 +1,154 @@
+{
+  "timestamp": 1788516822.4566584,
+  "benchmarks": {
+    "base_ttft_stats": {
+      "count": 15,
+      "mean": 1.69342,
+      "std_dev": 0.2931225394657619,
+      "min": 1.3292,
+      "median_p50": 1.61,
+      "p90": 1.9083,
+      "p95": 2.5907,
+      "p99": 2.5907,
+      "max": 2.5907
+    },
+    "cache_swap_stats": {
+      "count": 50,
+      "mean": 0.021202,
+      "std_dev": 0.05943277969303486,
+      "min": 0.0097,
+      "median_p50": 0.012150000000000001,
+      "p90": 0.0155,
+      "p95": 0.0173,
+      "p99": 0.4324,
+      "max": 0.4324
+    },
+    "cache_ttft_stats": {
+      "count": 50,
+      "mean": 1.634286,
+      "std_dev": 0.1895181527140956,
+      "min": 1.3944,
+      "median_p50": 1.613,
+      "p90": 1.8131,
+      "p95": 1.9374,
+      "p99": 2.6303,
+      "max": 2.6303
+    },
+    "sqlite_db_stats": {
+      "count": 50,
+      "mean": 1.974996,
+      "std_dev": 0.1738665497631175,
+      "min": 1.4982,
+      "median_p50": 1.9515,
+      "p90": 2.1679,
+      "p95": 2.3536,
+      "p99": 2.3622,
+      "max": 2.3622
+    },
+    "sqlite_swap_stats": {
+      "count": 50,
+      "mean": 2.001582,
+      "std_dev": 0.17376586721264697,
+      "min": 1.5213,
+      "median_p50": 1.9739499999999999,
+      "p90": 2.1952,
+      "p95": 2.3869,
+      "p99": 2.3906,
+      "max": 2.3906
+    },
+    "sqlite_ttft_stats": {
+      "count": 50,
+      "mean": 3.8810700000000002,
+      "std_dev": 0.271333902475627,
+      "min": 3.2952,
+      "median_p50": 3.8846,
+      "p90": 4.2043,
+      "p95": 4.3082,
+      "p99": 4.643,
+      "max": 4.643
+    },
+    "pro_swap_stats": {
+      "count": 50,
+      "mean": 0.011334,
+      "std_dev": 0.0023831560278465246,
+      "min": 0.0092,
+      "median_p50": 0.01075,
+      "p90": 0.013,
+      "p95": 0.0143,
+      "p99": 0.0252,
+      "max": 0.0252
+    },
+    "pro_ttft_stats": {
+      "count": 50,
+      "mean": 1.670836,
+      "std_dev": 0.12455315029729114,
+      "min": 1.4819,
+      "median_p50": 1.6489,
+      "p90": 1.8942,
+      "p95": 1.9065,
+      "p99": 2.0391,
+      "max": 2.0391
+    },
+    "cascade_swap_stats": {
+      "count": 15,
+      "mean": 0.38552,
+      "std_dev": 0.053601321945318796,
+      "min": 0.3165,
+      "median_p50": 0.3685,
+      "p90": 0.47450000000000003,
+      "p95": 0.4749,
+      "p99": 0.4749,
+      "max": 0.4749
+    },
+    "cascade_ttft_stats": {
+      "count": 15,
+      "mean": 3.9075933333333333,
+      "std_dev": 0.21568920254671556,
+      "min": 3.5601,
+      "median_p50": 3.9031,
+      "p90": 4.2345,
+      "p95": 4.3238,
+      "p99": 4.3238,
+      "max": 4.3238
+    }
+  },
+  "continuity": {
+    "scenario_a_inception": {
+      "status_code": 200,
+      "ttft_ms": 3.0675,
+      "total_ms": 4.7111,
+      "swap_latency_ms": 0.2632,
+      "stream_intact": true,
+      "text": "Hello! I am Claude-3.5-Sonnet streaming via Account B. The transparent proxy swap was 100% seamless! "
+    },
+    "scenario_b1_passthrough": {
+      "status_code": 200,
+      "frames_count": 6,
+      "stream_interrupted": true,
+      "trailer_error": {
+        "code": "resource_exhausted",
+        "message": "Quota limit reached mid-stream."
+      },
+      "partial_text": "Analyzing project files and context... "
+    },
+    "scenario_b2_naive_splice": {
+      "frames_count": 21,
+      "text": "Analyzing project files and context... Hello! I am Claude-3.5-Sonnet streaming via Account B. The transparent proxy swap was 100% seamless! ",
+      "has_duplication": true
+    },
+    "scenario_b3_full_buffer": {
+      "status_code": 200,
+      "ttft_ms": 4.3382,
+      "total_ms": 4.3539,
+      "stream_clean": true,
+      "text": "Hello! I am Claude-3.5-Sonnet streaming via Account B. The transparent proxy swap was 100% seamless! "
+    },
+    "scenario_b4_client_retry": {
+      "status_code": 200,
+      "ttft_ms": 1.8209,
+      "total_ms": 3.4101,
+      "proactive_swap": true,
+      "text": "Hello! I am Claude-3.5-Sonnet streaming via Account B. The transparent proxy swap was 100% seamless! "
+    }
+  }
+}

@@ -1,0 +1,52 @@
+# ==============================================================================
+# CursorRouter - Security & Environment GitIgnore
+# ==============================================================================
+
+# 1. CRITICAL SECURITY: User Cookies, Private Master Key & Databases
+.cursor_master.key
+.master.key
+*.key
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Ignore all user cookie files in Cookies directory except sample and gitkeep
+Cookies/*.txt
+Cookies/*.cookie
+Cookies/Archive_Corrupted/
+!Cookies/sample.txt.example
+!Cookies/.gitkeep
+
+# 2. Build Outputs, Binaries & Standalone Distribution
+dist/
+build/
+*.spec
+.updates/
+*.exe
+desktop_app/dist/
+desktop_app/build/
+
+# 3. Python Cache, Bytecode & Virtual Environments
+__pycache__/
+*.py[cod]
+*.class
+env/
+venv/
+.venv/
+
+# 4. Testing, Logs & Telemetry Caches
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+logs/
+
+# 5. OS & IDE Metadata
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

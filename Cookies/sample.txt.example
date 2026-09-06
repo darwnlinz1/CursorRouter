@@ -1,0 +1,9 @@
+# Sample Cookie File Format for Cursor Manager
+# Drop your exported cookie files (.txt) into this Cookies/ folder.
+# Supported formats:
+# 1. Netscape HTTP Cookie File format (exported by Cookie Editor / Get cookies.txt extension)
+# 2. Key=Value header format (e.g. WorkosCursorSessionToken=...; ... )
+# 3. JSON format exported from developer tools
+
+# Example:
+.cursor.sh	TRUE	/	TRUE	1799999999	WorkosCursorSessionToken	user_01abcdefghijklmnopqrstuvwxyz%3A%3Asample_token_value

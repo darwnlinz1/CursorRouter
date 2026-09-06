@@ -1,0 +1,31 @@
+{
+  "project_name": "FinTrack Pro",
+  "version": "1.0.0",
+  "created_at": 1788527820,
+  "milestones": [
+    {
+      "id": "M1",
+      "name": "Ledger & SQLite Storage Engine",
+      "status": "PENDING",
+      "tests": "tests/test_storage.py"
+    },
+    {
+      "id": "M2",
+      "name": "Trading Logic & PnL Calculator",
+      "status": "PENDING",
+      "tests": "tests/test_engine.py"
+    },
+    {
+      "id": "M3",
+      "name": "Self-Healing Bug Recovery Check",
+      "status": "PENDING",
+      "tests": "tests/test_healing.py"
+    },
+    {
+      "id": "M4",
+      "name": "REST API & Glassmorphism Cockpit",
+      "status": "PENDING",
+      "tests": "tests/test_api.py"
+    }
+  ]
+}
