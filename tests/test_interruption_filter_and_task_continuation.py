@@ -161,20 +161,21 @@ class TestInterruptionFilterAndTaskContinuation(unittest.TestCase):
 class TestWorkspaceStructureAndLauncher(unittest.TestCase):
     """Kiem tra tinh toan ven cua file START_HOST.bat va cau truc thu muc scripts/ va tests/."""
 
-    def test_01_start_host_batch_file_exists_and_valid(self):
-        """START_HOST.bat phai ton tai o root, co ma hoa UTF-8 va goi dung main.py / server."""
-        bat_path = os.path.join(ROOT_DIR, "START_HOST.bat")
-        self.assertTrue(os.path.exists(bat_path), "File START_HOST.bat phai ton tai o root!")
+    def test_01_main_unified_launcher_exists_and_valid(self):
+        """main.py phai ton tai o root, co ma hoa UTF-8 va ho tro day du cac mode khoi chay."""
+        main_path = os.path.join(ROOT_DIR, "main.py")
+        self.assertTrue(os.path.exists(main_path), "File main.py phai ton tai o root!")
 
-        with open(bat_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(main_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        self.assertIn("chcp 65001", content, "START_HOST.bat phai co chcp 65001 de ho tro tieng Viet!")
-        self.assertTrue("main.py" in content or "server.py" in content, "START_HOST.bat phai goi thuc thi main.py hoac server.py!")
-        self.assertIn("http://localhost:7860", content, "START_HOST.bat phai co URL localhost:7860!")
+        self.assertIn("utf-8", content.lower(), "main.py phai cau hinh ma hoa UTF-8!")
+        self.assertTrue("server" in content or "app" in content, "main.py phai goi server hoac native app!")
+        self.assertTrue(any(arg in content for arg in ("--native", "--app")), "main.py phai ho tro routing native app mode!")
 
-        # Kiem tra main.py ton tai o root va src/server.py ton tai o src/
+        # Kiem tra main.py va native_app.py ton tai o root va src/server.py ton tai o src/
         self.assertTrue(os.path.exists(os.path.join(ROOT_DIR, "main.py")), "main.py phai ton tai o root!")
+        self.assertTrue(os.path.exists(os.path.join(ROOT_DIR, "native_app.py")), "native_app.py phai ton tai o root!")
         self.assertTrue(os.path.exists(os.path.join(ROOT_DIR, "src", "server.py")), "server.py phai ton tai trong src/!")
 
     def test_02_scripts_folder_integrity(self):

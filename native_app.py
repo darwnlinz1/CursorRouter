@@ -135,9 +135,17 @@ class NativeAppController:
             return True
         except Exception as e:
             print(f"[-] Loi khoi dong pywebview GUI: {e}")
-            print("[*] Fallback sang khoi chay qua trinh duyet he thong...")
-            import webbrowser
-            webbrowser.open(url)
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(
+                        0,
+                        f"Không thể khởi động cửa sổ Native Desktop: {e}\n\nVui lòng cài đặt Microsoft Edge WebView2 Runtime.",
+                        "Cursor Manager - Native App Error",
+                        0x10 | 0x0
+                    )
+                except Exception:
+                    pass
             return False
 
 def main():

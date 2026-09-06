@@ -108,17 +108,17 @@
             <!-- Top Action Toolbar (Compact, strictly zero horizontal overflow) -->
             <div class="flex items-center space-x-2 flex-shrink-0">
                 <button onclick="openCookieFolder()" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 text-xs font-medium transition cursor-pointer" title="Mở thư mục Cookies trong Windows Explorer">
-                    <span>📂</span>
+                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                     <span class="hidden md:inline">Thư Mục</span> Cookies
                 </button>
 
                 <button onclick="openCleanupModal()" id="btn-cleanup-trigger" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-rose-950/30 text-rose-400 border border-zinc-800 hover:border-rose-800/40 text-xs font-medium transition cursor-pointer" title="Dọn dẹp tài khoản hết quota hoặc tài khoản hỏng">
-                    <span>🧹</span>
+                    <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     <span class="hidden sm:inline">Dọn Dẹp</span>
                 </button>
 
                 <button onclick="openAntidetectModal()" id="btn-antidetect-trigger" class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 text-xs font-medium transition cursor-pointer" title="Cấu Hình Ẩn Danh & Hardware Fingerprint Isolation (Anti-Detect Browser)">
-                    <span>🛡️</span>
+                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                     <span class="hidden sm:inline">Ẩn Danh</span>
                 </button>
 
@@ -143,30 +143,88 @@
         </div>
     </header>
 
-    <main class="w-full px-4 sm:px-6 lg:px-8 pt-5 space-y-5">
-
-        <!-- Cursor Offline Banner (Dynamic detection - only displayed when Cursor is closed) -->
-        <section id="cursor-offline-banner" class="hidden glass-card rounded-xl p-4 border border-amber-500/40 bg-[#19150e]">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center space-x-3.5">
-                    <div class="w-10 h-10 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-lg flex-shrink-0">
-                        ⚠️
+    <!-- Floating Notification Container (Top-Right Toast / Floating Notification System) -->
+    <aside id="floating-notification-container" aria-label="Notifications" class="fixed top-4 right-4 z-50 flex flex-col space-y-3 pointer-events-none max-w-sm sm:max-w-md w-full px-4 sm:px-0">
+        <!-- Cursor Offline Floating Notification -->
+        <div id="cursor-offline-banner" class="hidden pointer-events-auto bg-[#181510]/95 border border-amber-500/40 rounded-xl p-3.5 shadow-2xl backdrop-blur-md transition-all duration-300">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start space-x-3 min-w-0">
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 mt-0.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     </div>
-                    <div>
+                    <div class="min-w-0 flex-1">
                         <div class="flex items-center space-x-2">
-                            <span class="text-xs font-bold uppercase tracking-wider text-amber-400">Cursor Đang Đóng (App Offline)</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Not Running</span>
+                            <span class="text-xs font-bold text-amber-400">Cursor Đang Đóng (App Offline)</span>
+                            <span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">Offline</span>
                         </div>
-                        <p class="text-xs text-zinc-300 mt-0.5">Cursor IDE hiện chưa mở trên desktop. Hãy click nút bên dưới để mở ứng dụng và tự động đồng bộ ngay lập tức!</p>
+                        <p class="text-[11px] text-zinc-300 mt-0.5 leading-snug">Cursor IDE hiện chưa mở trên desktop. Bấm mở để kết nối ngay.</p>
+                        <div class="mt-2.5 flex items-center space-x-2">
+                            <button onclick="launchCursorApp()" id="btn-launch-cursor-banner" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-sm transition flex items-center space-x-1.5 cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Mở Cursor</span>
+                            </button>
+                            <button onclick="dismissOfflineNotification()" class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition cursor-pointer">
+                                Đóng
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center space-x-3 flex-shrink-0">
-                    <button onclick="launchCursorApp()" id="btn-launch-cursor-banner" class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 transition cursor-pointer">
-                        <span>🚀 Khởi Động Cursor Ngay</span>
-                    </button>
-                </div>
+                <button onclick="dismissOfflineNotification()" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md transition cursor-pointer flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
-        </section>
+        </div>
+
+        <!-- Startup Quota Sync Floating Notification -->
+        <div id="startup-sync-banner" class="hidden pointer-events-auto bg-[#141414]/95 border border-zinc-700/80 rounded-xl p-3.5 shadow-2xl backdrop-blur-md transition-all duration-300">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-start space-x-3 w-full min-w-0">
+                    <div id="startup-sync-icon-box" class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 flex-shrink-0 mt-0.5">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2">
+                            <span id="startup-sync-title" class="text-xs font-bold text-white">Kiểm Tra Quota Khởi Động</span>
+                            <span id="startup-sync-ratio" class="text-[10px] font-mono font-bold text-emerald-400">(0/0)</span>
+                        </div>
+                        <p id="startup-sync-details" class="text-[11px] text-zinc-400 font-mono mt-0.5 truncate">Đang khởi chạy luồng kiểm tra token...</p>
+                        <div class="mt-2 w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div id="startup-sync-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('startup-sync-banner').classList.add('hidden')" class="text-zinc-500 hover:text-zinc-300 p-1 rounded-md transition cursor-pointer flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Batch Check Progress Floating Notification -->
+        <div id="batch-progress-banner" class="hidden pointer-events-auto bg-[#141414]/95 border border-zinc-700/80 rounded-xl p-3.5 shadow-2xl backdrop-blur-md transition-all duration-300">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-start space-x-3 w-full min-w-0">
+                    <div id="batch-notify-icon-box" class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 flex-shrink-0 mt-0.5">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                            <span id="batch-notify-title" class="text-xs font-bold text-white">Kiểm Tra Quota Toàn Pool</span>
+                            <span id="batch-progress-ratio" class="text-[10px] font-mono font-bold text-emerald-400">(0/0)</span>
+                        </div>
+                        <p id="batch-current-acc" class="text-[11px] text-zinc-400 font-mono mt-0.5 truncate">Đang chuẩn bị...</p>
+                        <div class="mt-2 w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div id="batch-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="stopCheckAll()" class="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition cursor-pointer flex-shrink-0 ml-1">
+                    Dừng
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="w-full px-4 sm:px-6 lg:px-8 pt-5 space-y-5">
 
         <!-- Prominent Cookie Folder Section & Parallel Token Converter (12 Luồng) -->
         <section id="cookie-dropzone-section" class="glass-card rounded-xl p-5 border border-zinc-800 bg-[#141414]">
@@ -243,56 +301,6 @@
                 </div>
                 <div class="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
                     <div id="cookie-convert-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Batch Check Progress Banner -->
-        <section id="batch-progress-banner" class="hidden glass-card rounded-xl p-4 border border-zinc-800 bg-[#141414]">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center space-x-3">
-                    <span class="animate-spin text-lg">⏳</span>
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">Đang kiểm tra toàn bộ pool</span>
-                            <span id="batch-progress-ratio" class="text-xs font-mono text-white font-bold">(0/0)</span>
-                        </div>
-                        <p id="batch-current-acc" class="text-xs text-gray-300 font-mono mt-0.5 truncate max-w-md">Đang chuẩn bị...</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <div class="w-48 sm:w-64">
-                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div id="batch-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <button onclick="stopCheckAll()" class="px-3 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-medium transition">
-                        Dừng lại
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Startup Quota Sync Banner (5 Worker Threads) -->
-        <section id="startup-sync-banner" class="hidden glass-card rounded-xl p-4 border border-zinc-800 bg-[#141414]">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center space-x-3">
-                    <span class="inline-block animate-pulse text-xl">⚡</span>
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-xs font-bold uppercase tracking-wider text-zinc-200">Kiểm Tra Quota Khởi Động (5 Luồng)</span>
-                            <span id="startup-sync-ratio" class="text-xs font-mono text-white font-bold">(0/0)</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700 font-mono font-medium">5 Workers</span>
-                        </div>
-                        <p id="startup-sync-details" class="text-xs text-gray-300 font-mono mt-0.5 truncate max-w-xl">Đang khởi chạy luồng kiểm tra token...</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <div class="w-48 sm:w-64">
-                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div id="startup-sync-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -506,7 +514,7 @@
                 <div class="mt-3 flex items-baseline space-x-2 whitespace-nowrap">
                     <p id="stat-high" class="text-3xl font-extrabold font-mono text-rose-400 whitespace-nowrap">0</p>
                     <span class="text-sm font-semibold text-rose-400 font-mono whitespace-nowrap">acc</span>
-                    <span id="stat-pending-badge" class="text-xs font-mono font-medium text-zinc-400 ml-auto whitespace-nowrap">Pending: <span id="stat-pending">0</span></span>
+                    <span id="stat-pending-badge" class="hidden"><span id="stat-pending">0</span></span>
                 </div>
                 <p class="text-[11px] text-zinc-500 mt-1 whitespace-nowrap">Khóa 7 ngày tránh gọi lãng phí request</p>
             </div>
@@ -556,49 +564,23 @@
                         <button onclick="setStatusFilter('HIGH')" class="filter-btn hidden px-3 py-1.5 rounded-md text-zinc-400 hover:text-white whitespace-nowrap transition" data-status="HIGH">
                             Hết Quota (<span id="filter-count-high">0</span>)
                         </button>
-                        <button onclick="setStatusFilter('PENDING')" class="filter-btn px-3 py-1.5 rounded-md text-zinc-400 hover:text-white whitespace-nowrap transition" data-status="PENDING">
-                            Pending (<span id="filter-count-pending">0</span>)
-                        </button>
+                        <span id="filter-count-pending" class="hidden">0</span>
                         <button onclick="setStatusFilter('EXPIRED')" class="filter-btn px-3 py-1.5 rounded-md text-zinc-400 hover:text-white whitespace-nowrap transition" data-status="EXPIRED">
                             Hỏng (<span id="filter-count-expired">0</span>)
                         </button>
                     </div>
 
-                    <!-- View Mode Toggle (Compact Cards vs Table List) -->
-                    <div class="flex items-center p-0.5 bg-zinc-900 rounded-lg border border-zinc-800 text-xs flex-shrink-0">
-                        <button onclick="setViewMode('cards')" id="btn-view-cards" class="px-2.5 py-1.5 rounded-md text-white bg-zinc-800 font-medium transition cursor-pointer flex items-center space-x-1" title="Chế độ thẻ gọn (Compact Cards)">
-                            <span>📇</span>
-                            <span class="hidden sm:inline">Thẻ Gọn</span>
-                        </button>
-                        <button onclick="setViewMode('table')" id="btn-view-table" class="px-2.5 py-1.5 rounded-md text-zinc-400 hover:text-white font-medium transition cursor-pointer flex items-center space-x-1" title="Chế độ danh sách bảng (Table List)">
-                            <span>📋</span>
-                            <span class="hidden sm:inline">Bảng</span>
-                        </button>
-                    </div>
-
                     <!-- Batch Check Button -->
-                    <button onclick="toggleCheckAll()" id="btn-check-all" class="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-zinc-700 text-xs font-medium transition whitespace-nowrap flex-shrink-0 cursor-pointer">
-                        <span id="check-all-icon">🔍</span>
+                    <button onclick="toggleCheckAll()" id="btn-check-all" class="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 hover:border-zinc-700 text-xs font-medium transition whitespace-nowrap flex-shrink-0 cursor-pointer" title="Kiểm tra lại quota tất cả tài khoản">
+                        <span id="check-all-icon" class="flex items-center"><svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></span>
                         <span id="check-all-text">Kiểm Tra Tất Cả</span>
                     </button>
 
                 </div>
             </div>
 
-            <!-- Compact Cards Container (High-Density Grid View) -->
-            <div id="cards-view-container" class="p-4 overflow-y-auto max-h-[680px] custom-scrollbar border-t border-zinc-800">
-                <div id="accounts-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    <div class="col-span-full py-12 text-center text-zinc-500 font-sans">
-                        <div class="flex flex-col items-center justify-center space-y-2">
-                            <span class="animate-spin text-2xl">⏳</span>
-                            <span>Đang đồng bộ và tải danh sách thẻ tài khoản...</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Table Container (Internal scrollable viewport with fixed height & sticky elements) -->
-            <div id="table-view-container" class="hidden overflow-x-auto overflow-y-auto max-h-[680px] custom-scrollbar relative border-t border-zinc-800">
+            <div id="table-view-container" class="overflow-x-auto overflow-y-auto max-h-[680px] custom-scrollbar relative border-t border-zinc-800">
                 <table class="w-full text-left text-sm text-zinc-300 border-collapse">
                     <thead class="bg-[#181818] sticky top-0 z-20 text-[11px] font-semibold uppercase text-zinc-400 tracking-wider border-b border-zinc-800 shadow-sm">
                         <tr>
@@ -2514,6 +2496,14 @@
         }
 
         let previousCursorRunning = null;
+        let startupBannerDismissed = false;
+        let offlineNotificationDismissed = false;
+
+        function dismissOfflineNotification() {
+            offlineNotificationDismissed = true;
+            const offlineBanner = document.getElementById('cursor-offline-banner');
+            if (offlineBanner) offlineBanner.classList.add('hidden');
+        }
 
         async function loadActiveStatus() {
             try {
@@ -2530,8 +2520,11 @@
                 if (offlineBanner) {
                     if (isRunning) {
                         offlineBanner.classList.add('hidden');
+                        offlineNotificationDismissed = false;
                     } else {
-                        offlineBanner.classList.remove('hidden');
+                        if (!offlineNotificationDismissed) {
+                            offlineBanner.classList.remove('hidden');
+                        }
                     }
                 }
 
@@ -2604,27 +2597,33 @@
                 const startupRatio = document.getElementById('startup-sync-ratio');
                 const startupDetails = document.getElementById('startup-sync-details');
                 const startupBar = document.getElementById('startup-sync-bar');
+                const startupIconBox = document.getElementById('startup-sync-icon-box');
 
                 if (data && data.startup_sync) {
                     const ss = data.startup_sync;
                     if (ss.running) {
+                        startupBannerDismissed = false;
                         if (startupBanner) startupBanner.classList.remove('hidden');
                         if (startupRatio) startupRatio.textContent = `(${ss.current}/${ss.total})`;
                         const pct = ss.total > 0 ? Math.round((ss.current / ss.total) * 100) : 0;
                         if (startupBar) startupBar.style.width = `${pct}%`;
                         if (startupDetails) {
-                            startupDetails.textContent = `Đang check: ${ss.current_account || '...'} | Sẵn sàng: ${ss.ready_count} | Hết quota: ${ss.exhausted_count} | Hết hạn: ${ss.expired_count}`;
+                            startupDetails.textContent = `Đang check: ${ss.current_account || '...'} | Sẵn sàng: ${ss.ready_count || 0} | Cooldown: ${ss.exhausted_count || 0}`;
                         }
-                    } else if (startupBanner && !startupBanner.classList.contains('hidden')) {
-                        if (startupRatio) startupRatio.textContent = `(${ss.total}/${ss.total})`;
+                    } else if (startupBanner && !startupBanner.classList.contains('hidden') && !startupBannerDismissed) {
+                        if (startupRatio) startupRatio.textContent = `(${ss.total || ss.current || 0}/${ss.total || ss.current || 0})`;
                         if (startupBar) startupBar.style.width = '100%';
                         if (startupDetails) {
-                            startupDetails.textContent = `Hoàn tất kiểm tra 5 luồng! Sẵn sàng: ${ss.ready_count} | Hết quota: ${ss.exhausted_count} | Hết hạn: ${ss.expired_count} (${ss.duration_seconds}s)`;
+                            startupDetails.textContent = `Hoàn tất! Sẵn sàng: ${ss.ready_count || 0} | Cooldown: ${ss.exhausted_count || 0} | Hết hạn: ${ss.expired_count || 0} (${ss.duration_seconds || 0}s)`;
                         }
+                        if (startupIconBox) {
+                            startupIconBox.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                        }
+                        startupBannerDismissed = true;
                         setTimeout(() => {
                             if (startupBanner) startupBanner.classList.add('hidden');
                             loadAccounts();
-                        }, 2500);
+                        }, 3500);
                     }
                 }
 
@@ -2767,12 +2766,19 @@
                 const matchSearch = (a.email || a.file_name || '').toLowerCase().includes(search);
                 return matchStatus && matchSearch;
             });
-            // Luon dam bao tai khoan dang active (is_active: true) dung dau tien (#1 row)
+            // 1. Luôn đảm bảo tài khoản đang active (is_active: true) đứng đầu tiên (#1 row)
+            // 2. Tài khoản cooldown 7 ngày / cạn quota (>=100%) hoặc EXPIRED tự động xếp xuống cuối danh sách (sau cả Tier 1 và Tier 2)
             return list.sort((a, b) => {
                 const aActive = Boolean(a.is_active);
                 const bActive = Boolean(b.is_active);
                 if (aActive && !bActive) return -1;
                 if (!aActive && bActive) return 1;
+
+                const aCooldown = isCoolingDown(a) || a.status === 'EXPIRED';
+                const bCooldown = isCoolingDown(b) || b.status === 'EXPIRED';
+                if (!aCooldown && bCooldown) return -1;
+                if (aCooldown && !bCooldown) return 1;
+
                 const aPct = a.usage_percent !== undefined && a.usage_percent !== null ? a.usage_percent : 999;
                 const bPct = b.usage_percent !== undefined && b.usage_percent !== null ? b.usage_percent : 999;
                 if (aPct !== bPct) return aPct - bPct;
@@ -3047,30 +3053,11 @@
         }
 
         // =========================================================================
-        // View Mode Toggle (Compact Cards vs Table List)
+        // View Mode (Table List default & sole view)
         // =========================================================================
-        let currentViewMode = localStorage.getItem('cursor_view_mode') || 'cards';
-
         function setViewMode(mode) {
-            currentViewMode = mode;
-            try { localStorage.setItem('cursor_view_mode', mode); } catch(e) {}
-            
-            const btnCards = document.getElementById('btn-view-cards');
-            const btnTable = document.getElementById('btn-view-table');
-            const cardsContainer = document.getElementById('cards-view-container');
             const tableContainer = document.getElementById('table-view-container');
-
-            if (mode === 'table') {
-                if (btnCards) btnCards.className = "px-2.5 py-1.5 rounded-md text-zinc-400 hover:text-white font-medium transition cursor-pointer flex items-center space-x-1";
-                if (btnTable) btnTable.className = "px-2.5 py-1.5 rounded-md text-white bg-zinc-800 font-medium transition cursor-pointer flex items-center space-x-1";
-                if (cardsContainer) cardsContainer.classList.add('hidden');
-                if (tableContainer) tableContainer.classList.remove('hidden');
-            } else {
-                if (btnCards) btnCards.className = "px-2.5 py-1.5 rounded-md text-white bg-zinc-800 font-medium transition cursor-pointer flex items-center space-x-1";
-                if (btnTable) btnTable.className = "px-2.5 py-1.5 rounded-md text-zinc-400 hover:text-white font-medium transition cursor-pointer flex items-center space-x-1";
-                if (cardsContainer) cardsContainer.classList.remove('hidden');
-                if (tableContainer) tableContainer.classList.add('hidden');
-            }
+            if (tableContainer) tableContainer.classList.remove('hidden');
         }
 
         function maskEmail(email) {
@@ -3369,7 +3356,6 @@
 
             if (filtered.length === 0) {
                 if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-gray-500 font-sans">Không tìm thấy tài khoản phù hợp với điều kiện lọc</td></tr>`;
-                if (cardsGrid) cardsGrid.innerHTML = `<div class="col-span-full py-12 text-center text-zinc-500 font-sans">Không tìm thấy tài khoản phù hợp với điều kiện lọc</div>`;
                 return;
             }
 
@@ -3405,39 +3391,30 @@
 
                     const prof = a.config_profile || 'default';
                     const isCustomProf = prof && !['default', 'agent_turbo', 'cost_saver', 'privacy_stealth'].includes(prof);
-                    const maskedToken = a.masked_token || (a.access_token ? (a.access_token.slice(0, 6) + '...' + a.access_token.slice(-4)) : null);
 
                     return `
                         <tr class="hover:bg-zinc-800/30 transition duration-150 ${rowBg}">
                             <td class="px-4 py-3 w-12 text-center text-xs font-mono text-zinc-500 whitespace-nowrap">${globalIdx}</td>
-                            <td class="px-5 py-3 min-w-[280px]">
+                            <td class="px-5 py-3 min-w-[260px]">
                                 <div class="flex items-center space-x-2.5 whitespace-nowrap">
                                     <span class="font-semibold text-white text-xs sm:text-sm tracking-tight whitespace-nowrap select-all">${a.email || a.file_name}</span>
                                     ${isActive ? '<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold tracking-wider whitespace-nowrap flex-shrink-0">ACTIVE</span>' : ''}
                                 </div>
-                                <div class="flex items-center space-x-2 mt-0.5">
-                                    <span class="text-[11px] text-zinc-500 truncate block max-w-[160px] whitespace-nowrap font-mono">${a.file_name}</span>
-                                    ${maskedToken && maskedToken !== 'None' ? `
-                                        <button onclick="copyAccountToken(${a.id})" class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-[10px] font-mono text-zinc-400 hover:text-zinc-200 transition cursor-pointer" title="Click để copy Access Token vào Clipboard">
-                                            <span>🔑 ${maskedToken}</span>
-                                            <span class="text-[9px] opacity-70">📋</span>
-                                        </button>
-                                    ` : ''}
-                                </div>
+                                <div class="text-[11px] text-zinc-500 truncate max-w-[200px] whitespace-nowrap font-mono mt-0.5">${a.file_name || ''}</div>
                             </td>
                             <td class="px-4 py-3 text-xs font-sans text-zinc-300 whitespace-nowrap">${a.display_name || '—'}</td>
                             <td class="px-4 py-3 whitespace-nowrap">${statusBadge}</td>
                             <td class="px-4 py-3 whitespace-nowrap font-sans">
                                 <select onchange="assignAccountProfile(${a.id}, this.value)" class="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-md px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-zinc-600 cursor-pointer font-mono">
-                                    <option value="default" ${prof === 'default' ? 'selected' : ''}>📁 Standard</option>
-                                    <option value="agent_turbo" ${prof === 'agent_turbo' ? 'selected' : ''}>⚡ Turbo</option>
-                                    <option value="cost_saver" ${prof === 'cost_saver' ? 'selected' : ''}>💰 Saver</option>
-                                    <option value="privacy_stealth" ${prof === 'privacy_stealth' ? 'selected' : ''}>🛡️ Stealth</option>
-                                    ${isCustomProf ? `<option value="${prof}" selected>⭐ ${prof}</option>` : ''}
+                                    <option value="default" ${prof === 'default' ? 'selected' : ''}>Standard</option>
+                                    <option value="agent_turbo" ${prof === 'agent_turbo' ? 'selected' : ''}>Turbo</option>
+                                    <option value="cost_saver" ${prof === 'cost_saver' ? 'selected' : ''}>Saver</option>
+                                    <option value="privacy_stealth" ${prof === 'privacy_stealth' ? 'selected' : ''}>Stealth</option>
+                                    ${isCustomProf ? `<option value="${prof}" selected>${prof}</option>` : ''}
                                 </select>
                             </td>
                             <td class="px-5 py-3 whitespace-nowrap">
-                                <div class="w-40 sm:w-48">
+                                <div class="w-36 sm:w-44">
                                     <div class="flex justify-between text-[11px] mb-1 font-mono font-medium whitespace-nowrap">
                                         <span class="${pct >= 50 ? 'text-rose-400 font-bold' : (pct >= 40 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold')}">${pct}%</span>
                                         <span class="text-zinc-500 text-[10px]">$${(a.total_spend || 0).toFixed(2)} / $2.00</span>
@@ -3447,108 +3424,21 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-2.5 min-w-[240px] w-[240px] text-center space-x-1.5 whitespace-nowrap sticky right-0 bg-[#141414] z-10 border-l border-zinc-800">
-                                <button onclick="refreshQuota(${a.id})" class="px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition whitespace-nowrap cursor-pointer" title="Truy vấn Quota mới nhất từ Cursor API">
-                                    🔄 Quota
+                            <td class="px-4 py-2.5 min-w-[220px] w-[220px] text-center space-x-1.5 whitespace-nowrap sticky right-0 bg-[#141414] z-10 border-l border-zinc-800">
+                                <button onclick="refreshQuota(${a.id})" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition whitespace-nowrap cursor-pointer" title="Làm mới Quota">
+                                    <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    <span>Quota</span>
                                 </button>
-                                <button onclick="switchToAccount(${a.id})" class="px-3 py-1 rounded-md ${isActive ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold' : 'bg-zinc-100 hover:bg-white text-zinc-950 font-semibold shadow-sm'} text-xs font-sans transition whitespace-nowrap cursor-pointer">
-                                    ${isActive ? '✓ Đang Dùng' : '⚡ Bơm vào Cursor'}
+                                <button onclick="switchToAccount(${a.id})" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md ${isActive ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold' : 'bg-zinc-100 hover:bg-white text-zinc-950 font-semibold shadow-sm'} text-xs font-sans transition whitespace-nowrap cursor-pointer" title="Nạp tài khoản vào Cursor">
+                                    ${isActive 
+                                        ? '<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Đang Dùng</span>' 
+                                        : '<svg class="w-3.5 h-3.5 text-zinc-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg><span>Dùng</span>'}
                                 </button>
-                                <button onclick="deleteSingleAccount(${a.id}, '${a.email || a.file_name}')" class="px-2 py-1 rounded-md bg-zinc-900 hover:bg-rose-950/40 text-rose-400 border border-zinc-800 hover:border-rose-800/40 text-xs transition whitespace-nowrap cursor-pointer" title="Xóa tài khoản và file cookie">
-                                    🗑️
+                                <button onclick="deleteSingleAccount(${a.id}, '${a.email || a.file_name}')" class="inline-flex items-center justify-center p-1.5 rounded-md bg-zinc-900 hover:bg-rose-950/40 text-rose-400 border border-zinc-800 hover:border-rose-800/40 text-xs transition cursor-pointer" title="Xóa tài khoản">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
                             </td>
                         </tr>
-                    `;
-                }).join('');
-            }
-
-            // 2. Render Compact Cards Grid View (High-Density Cards)
-            if (cardsGrid) {
-                cardsGrid.innerHTML = displayList.map((a) => {
-                    const isActive = a.is_active;
-                    const pct = Math.round(a.usage_percent || 0);
-                    const isCooldown = Boolean((a.cooldown_until && a.cooldown_until > Date.now()/1000) || a.status === 'EXHAUSTED' || pct >= 100);
-                    
-                    let statusBadge = '';
-                    if (a.status === 'EXPIRED') {
-                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-mono font-medium whitespace-nowrap">EXPIRED</span>';
-                    } else if (isCooldown) {
-                        const cdText = (a.cooldown_until && a.cooldown_until > Date.now()/1000) ? 'Cooldown 7d' : 'Hết Quota';
-                        statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/25 text-[10px] font-mono font-medium whitespace-nowrap">${cdText}</span>`;
-                    } else if (pct >= 50) {
-                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 text-[10px] font-mono font-medium whitespace-nowrap">Tier 2</span>';
-                    } else if (a.status === 'READY' || pct < 50) {
-                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 text-[10px] font-mono font-medium whitespace-nowrap">Tier 1</span>';
-                    } else {
-                        statusBadge = '<span class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 text-[10px] font-mono whitespace-nowrap">Pending</span>';
-                    }
-
-                    let progressBarColor = 'bg-emerald-500';
-                    if (pct >= 100 || isCooldown) progressBarColor = 'bg-rose-500';
-                    else if (pct >= 50) progressBarColor = 'bg-amber-500';
-
-                    const avatarChar = (a.display_name || a.email || 'C')[0].toUpperCase();
-                    const fpId = a.fingerprint_id || (a.fingerprint && a.fingerprint.fingerprint_id) || (a.fingerprint && a.fingerprint.machineId ? a.fingerprint.machineId.slice(0, 8) : `FP-${a.id}`);
-
-                    return `
-                        <div class="glass-card p-3.5 rounded-xl border ${isActive ? 'border-emerald-500/70 shadow-md shadow-emerald-500/10 bg-[#161a16]' : 'border-zinc-800/90 bg-[#141414] hover:border-zinc-700'} transition flex flex-col justify-between space-y-3 relative group">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="flex items-center space-x-2.5 min-w-0">
-                                    <div class="relative flex-shrink-0">
-                                        <div class="w-8 h-8 rounded-full ${isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-zinc-800 text-zinc-200 border border-zinc-700'} flex items-center justify-center font-bold text-xs uppercase shadow-sm">
-                                            ${avatarChar}
-                                        </div>
-                                        ${isActive ? '<span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#141414]"></span>' : ''}
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <div class="flex items-center space-x-1.5">
-                                            <span class="font-bold text-xs text-white truncate max-w-[110px]" title="${a.display_name || a.email}">${a.display_name || (a.email ? a.email.split('@')[0] : 'User')}</span>
-                                            ${isActive ? '<span class="px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-mono font-bold">ACTIVE</span>' : ''}
-                                        </div>
-                                        <div class="flex items-center space-x-1 text-[11px] font-mono text-zinc-400 mt-0.5">
-                                            <span id="card-email-${a.id}" class="truncate max-w-[105px]" data-full="${a.email || a.file_name}" data-masked="true">${maskEmail(a.email || a.file_name)}</span>
-                                            <button onclick="toggleCardEmailMask(${a.id})" class="text-zinc-500 hover:text-zinc-300 transition text-[10px] p-0.5 cursor-pointer" title="Ẩn/Hiện email">👁️</button>
-                                            <button onclick="copyToClipboard('${a.email || a.file_name}')" class="text-zinc-500 hover:text-zinc-300 transition text-[10px] p-0.5 cursor-pointer" title="Sao chép email">📋</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex-shrink-0">
-                                    ${statusBadge}
-                                </div>
-                            </div>
-
-                            <div class="space-y-1.5 pt-2 border-t border-zinc-800/80">
-                                <div class="flex items-center justify-between text-[10px] font-mono">
-                                    <span class="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 cursor-pointer hover:text-zinc-200" onclick="inspectAccountFingerprint(${a.id})" title="Click để xem & cấu hình Hardware Fingerprint">
-                                        <span>🛡️</span>
-                                        <span>${fpId}</span>
-                                    </span>
-                                    <span class="text-zinc-400 font-medium">$${(a.total_spend || 0).toFixed(2)}</span>
-                                </div>
-                                <div>
-                                    <div class="flex justify-between text-[11px] mb-1 font-mono font-medium">
-                                        <span class="${pct >= 50 ? 'text-rose-400 font-bold' : (pct >= 40 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold')}">${pct}% Quota</span>
-                                        <span class="text-zinc-500 text-[10px]">${a.config_profile || 'default'}</span>
-                                    </div>
-                                    <div class="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                        <div class="h-full rounded-full ${progressBarColor}" style="width: ${Math.min(100, pct)}%"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="pt-2 border-t border-zinc-800/80 flex items-center justify-between gap-1.5">
-                                <button onclick="switchToAccount(${a.id})" class="flex-1 py-1.5 px-2 rounded-lg ${isActive ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold' : 'bg-zinc-100 hover:bg-white text-zinc-950 font-bold shadow-sm'} text-xs transition flex items-center justify-center space-x-1 cursor-pointer">
-                                    <span>${isActive ? '✓ Đang Dùng' : '⚡ Sử Dụng'}</span>
-                                </button>
-                                <button onclick="refreshQuota(${a.id})" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700 text-xs transition cursor-pointer" title="Làm mới Quota">
-                                    🔄
-                                </button>
-                                <button onclick="deleteSingleAccount(${a.id}, '${a.email || a.file_name}')" class="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-950/40 text-rose-400 border border-zinc-800 hover:border-rose-800/40 text-xs transition cursor-pointer" title="Xóa tài khoản">
-                                    🗑️
-                                </button>
-                            </div>
-                        </div>
                     `;
                 }).join('');
             }
@@ -4163,11 +4053,11 @@
 
         function startPollingProgress() {
             const banner = document.getElementById('batch-progress-banner');
-            const btnIcon = document.getElementById('check-all-icon');
+            const iconWrapper = document.getElementById('check-all-icon');
             const btnText = document.getElementById('check-all-text');
-            banner.classList.remove('hidden');
-            btnIcon.textContent = '⏹️';
-            btnText.textContent = 'Dừng Check';
+            if (banner) banner.classList.remove('hidden');
+            if (iconWrapper) iconWrapper.innerHTML = '<span class="text-xs">⏹️</span>';
+            if (btnText) btnText.textContent = 'Dừng Check';
 
             if (checkAllTimer) clearInterval(checkAllTimer);
             checkAllTimer = setInterval(async () => {
@@ -4178,20 +4068,47 @@
                         const cur = data.current || 0;
                         const tot = data.total || 1;
                         const pct = Math.round((cur / tot) * 100);
-                        document.getElementById('batch-progress-ratio').textContent = `(${cur}/${tot} - ${pct}%)`;
-                        document.getElementById('batch-current-acc').textContent = 'Đang check: ' + (data.current_email || '...');
-                        document.getElementById('batch-bar').style.width = pct + '%';
+                        const ratio = document.getElementById('batch-progress-ratio');
+                        const curAcc = document.getElementById('batch-current-acc');
+                        const bar = document.getElementById('batch-bar');
+                        if (ratio) ratio.textContent = `(${cur}/${tot} - ${pct}%)`;
+                        if (curAcc) curAcc.textContent = 'Đang check: ' + (data.current_email || '...');
+                        if (bar) bar.style.width = pct + '%';
                         
                         if (cur % 3 === 0) await loadAccounts();
                     } else {
                         clearInterval(checkAllTimer);
                         checkAllTimer = null;
-                        banner.classList.add('hidden');
-                        btnIcon.textContent = '🔍';
-                        btnText.textContent = 'Kiểm Tra Tất Cả';
+                        
+                        const bar = document.getElementById('batch-bar');
+                        const ratio = document.getElementById('batch-progress-ratio');
+                        const curAcc = document.getElementById('batch-current-acc');
+                        const iconBox = document.getElementById('batch-notify-icon-box');
+                        const title = document.getElementById('batch-notify-title');
+
+                        if (bar) bar.style.width = '100%';
+                        if (ratio) ratio.textContent = '(100%)';
+                        if (title) title.textContent = 'Hoàn Tất Kiểm Tra Quota';
+                        if (curAcc) curAcc.textContent = `Thành công: ${data.success_count || 0} tài khoản | Lỗi: ${data.failed_count || 0}`;
+                        if (iconBox) {
+                            iconBox.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                        }
+
+                        if (iconWrapper) {
+                            iconWrapper.innerHTML = '<svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>';
+                        }
+                        if (btnText) btnText.textContent = 'Kiểm Tra Tất Cả';
                         showToast(`Hoàn tất! Thành công: ${data.success_count || 0}, Thất bại: ${data.failed_count || 0}`, '🎉');
                         await loadAccounts();
                         await loadActiveStatus();
+
+                        setTimeout(() => {
+                            if (banner) banner.classList.add('hidden');
+                            if (title) title.textContent = 'Kiểm Tra Quota Toàn Pool';
+                            if (iconBox) {
+                                iconBox.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>';
+                            }
+                        }, 3500);
                     }
                 } catch (err) {
                     console.error('Polling error:', err);
@@ -4310,6 +4227,9 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast(data.message || 'Đã khởi động Cursor thành công!', '✅');
+                    const offlineBanner = document.getElementById('cursor-offline-banner');
+                    if (offlineBanner) offlineBanner.classList.add('hidden');
+                    offlineNotificationDismissed = true;
                     setTimeout(async () => {
                         await loadActiveStatus();
                     }, 2000);

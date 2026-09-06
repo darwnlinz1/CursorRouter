@@ -100,9 +100,9 @@ Standard browser and desktop extensions share the host operating system's hardwa
 
 ```
 CursorRouter/
-├── START_HOST.bat               # 1-Click launcher: Flask background server + Browser cockpit
-├── START_NATIVE_APP.bat         # 1-Click launcher: Native Edge WebView2 desktop application
 ├── main.py                      # Unified Python CLI & server entry point
+├── native_app.py                # Standalone native desktop application launcher
+├── build_standalone_exe.py      # Standalone Windows executable builder
 ├── auto_switch_config.json      # Configuration: auto-switch, reset mode, anti-detect settings
 ├── cursor_config_profiles.json  # Exportable/importable 8-category Cursor setting profiles
 ├── pytest.ini                   # Pytest automation configuration
@@ -135,7 +135,7 @@ CursorRouter/
 │   └── token_cipher.py          # HMAC-SHA256 token encryption for SQLite security
 │
 ├── templates/                   # Frontend UI
-│   └── index.html               # Minimalist HUD Cockpit (Compact Cards, View Toggle, Settings Modal)
+│   └── index.html               # Minimalist HUD Cockpit (Account Table, Settings Modal)
 ├── Cookies/                     # User cookies dropzone directory (.gitignored)
 │   └── .gitkeep                 # Preserved folder placeholder
 └── tests/                       # Automated Pytest Suite (309 tests, 100% pass rate)
@@ -162,15 +162,15 @@ pip install -r desktop_app/requirements.txt
 
 - **Web Dashboard Mode**:
   ```bash
-  START_HOST.bat
+  python main.py
   ```
-  Or run `python main.py`. Cockpit opens automatically at `http://127.0.0.1:7860`.
+  Cockpit runs at `http://127.0.0.1:7860` (or `http://localhost:7860`).
 
 - **Native Desktop App Mode**:
   ```bash
-  START_NATIVE_APP.bat
+  python main.py --native
   ```
-  Or run `python desktop_app/desktop_main.py`. Opens as a standalone window using Microsoft Edge WebView2.
+  Or run `python desktop_app/desktop_main.py`. Opens as a standalone window using Microsoft Edge WebView2 without launching external web browsers.
 
 ---
 
