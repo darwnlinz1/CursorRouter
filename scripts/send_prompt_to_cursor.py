@@ -17,21 +17,38 @@ import time
 import subprocess
 
 # 1. Ensure Master Prompt is in clipboard
-prompt_path = r"C:\Users\darwnlinz\Downloads\CursorThings\test\PROMPT.md"
-with open(prompt_path, "r", encoding="utf-8") as f:
-    prompt_text = f.read()
+candidate_paths = [
+    os.path.join(ROOT_DIR, "tests", "mock_workspaces", "test", "PROMPT.md"),
+    os.path.join(ROOT_DIR, "test", "PROMPT.md"),
+    os.path.join(ROOT_DIR, "PROMPT.md"),
+]
+prompt_path = next((p for p in candidate_paths if os.path.exists(p)), candidate_paths[0])
+prompt_text = ""
+if os.path.exists(prompt_path):
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        prompt_text = f.read()
+else:
+    print(f"[-] Prompt file not found at: {prompt_path}")
 
 # Put in Windows clipboard
-import win32clipboard
+copied = False
 try:
+    import win32clipboard
     win32clipboard.OpenClipboard()
     win32clipboard.EmptyClipboard()
     win32clipboard.SetClipboardText(prompt_text, win32clipboard.CF_UNICODETEXT)
     win32clipboard.CloseClipboard()
+    copied = True
     print("[+] Prompt text copied to Windows clipboard via Win32 API.")
-except Exception as e:
-    subprocess.run(["powershell", "-Command", f"Get-Content '{prompt_path}' -Raw | Set-Clipboard"], check=True)
-    print("[+] Prompt text copied to Windows clipboard via PowerShell.")
+except (ImportError, Exception):
+    pass
+
+if not copied and os.path.exists(prompt_path):
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", f"Get-Content -LiteralPath '{prompt_path}' -Raw | Set-Clipboard"], check=True)
+        print("[+] Prompt text copied to Windows clipboard via PowerShell.")
+    except Exception as e:
+        print(f"[-] Could not copy prompt to clipboard: {e}")
 
 # 2. Find Cursor PID and HWND
 user32 = ctypes.windll.user32

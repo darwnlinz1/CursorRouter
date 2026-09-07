@@ -77,6 +77,7 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
 
     hidden_imports = [
         'flask', 'jinja2', 'requests', 'psutil', 'sqlite3', 'ctypes', 'webview',
+        'aiohttp', 'aiohttp.web',
         'ai_optimizer', 'updater', 'cursor_settings', 'account_pool',
         'cursor_reloader', 'rotating_proxy', 'token_pool', 'smart_task_filter',
         'chat_lock_detector'

@@ -24,6 +24,7 @@ Cookies/Archive_Corrupted/
 dist/
 build/
 *.spec
+!desktop_app/CursorRouter.spec
 .updates/
 *.exe
 desktop_app/dist/

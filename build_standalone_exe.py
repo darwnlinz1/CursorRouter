@@ -87,6 +87,8 @@ def build_executable(onefile: bool = True, windowed: bool = False):
         "sqlite3",
         "ctypes",
         "webview",
+        "aiohttp",
+        "aiohttp.web",
         "ai_optimizer",
         "updater",
         "cursor_settings",
