@@ -34,7 +34,6 @@ for p in (SRC_DIR, ROOT_DIR, DESKTOP_DIR):
         sys.path.insert(0, p)
 
 from cursor_reloader import is_cursor_running, release_all_modifier_keys
-from server import app
 
 
 def is_port_in_use(port: int) -> bool:
@@ -69,6 +68,7 @@ class DesktopAppController:
         def _run():
             try:
                 from werkzeug.serving import run_simple
+                from server import app
                 run_simple('127.0.0.1', self.port, app, threaded=True, use_reloader=False)
             except Exception as e:
                 print(f'[-] Background server error: {e}')

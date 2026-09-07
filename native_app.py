@@ -39,7 +39,6 @@ for p in (SRC_DIR, ROOT_DIR):
         sys.path.insert(0, p)
 
 from cursor_reloader import is_cursor_running, release_all_modifier_keys
-from server import app
 
 def find_free_port(start_port: int = 7860, max_attempts: int = 20) -> int:
     """Tìm cổng mạng khả dụng, ưu tiên 7860."""
@@ -73,6 +72,7 @@ class NativeAppController:
         def _run():
             try:
                 from werkzeug.serving import run_simple
+                from server import app
                 run_simple("127.0.0.1", self.port, app, threaded=True, use_reloader=False)
             except Exception as e:
                 print(f"[-] Loi khoi dong server ngam: {e}")
