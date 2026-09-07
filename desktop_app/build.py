@@ -28,7 +28,7 @@ def calculate_sha256(filepath: str) -> str:
 
 def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
     print('=' * 65)
-    print('  ?? CURSORROUTER - DESKTOP STANDALONE BINARY BUILDER')
+    print('  [+] CURSORROUTER - DESKTOP STANDALONE BINARY BUILDER')
     print('=' * 65)
 
     entrypoint = os.path.join(DESKTOP_DIR, 'desktop_main.py')
@@ -104,26 +104,26 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
         size_mb = os.path.getsize(target_exe) / (1024 * 1024)
         sha256_hash = calculate_sha256(target_exe)
         print('\n' + '=' * 65)
-        print('  ? BUILD SUCCESSFUL!')
-        print(f'  ?? Binary: {target_exe}')
-        print(f'  ?? Size:   {size_mb:.2f} MB')
-        print(f'  ?? SHA256: {sha256_hash}')
+        print('  [+] BUILD SUCCESSFUL!')
+        print(f'  * Binary:   {target_exe}')
+        print(f'  * Size:     {size_mb:.2f} MB')
+        print(f'  * SHA256:   {sha256_hash}')
         print('=' * 65)
 
         manifest = {
-            'version': '2.5.0',
+            'version': '2.5.1',
             'release_date': '2026-09-06',
             'channel': 'stable',
             'download_url': 'CursorRouter.exe',
             'sha256': sha256_hash,
             'mandatory': False,
             'min_version': '2.0.0',
-            'changelog': '1. Anti-detect hardware fingerprint isolation.\n2. Compact accounts view with email masking and instant switch.\n3. Dedicated desktop app build pipeline.\n4. Real-time quota metrics and zero-stuck modifier keys.\n5. Full 8-category Cursor settings taxonomy.'
+            'changelog': '1. Top-right notifications for offline Cursor & startup quota sync.\n2. Clean detail table view with 7-day cooldown auto-pushed to bottom.\n3. Safe manual prompt continuation default.\n4. Clean environment compatibility with root requirements.txt.\n5. Sub-second CLI startup with lazy server imports.'
         }
         manifest_path = os.path.join(DIST_DIR, 'manifest.json')
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
-        print(f'  ?? Manifest: {manifest_path}\n')
+        print(f'  * Manifest: {manifest_path}\n')
         return True
     else:
         print(f'[-] Target binary not found in {DIST_DIR}')
