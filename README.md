@@ -155,7 +155,7 @@ Clone the repository and install core dependencies:
 ```bash
 git clone https://github.com/darwnlinz1/CursorRouter.git
 cd CursorRouter
-pip install -r desktop_app/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 2. Launching Cockpit
