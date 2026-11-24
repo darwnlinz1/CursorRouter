@@ -124,7 +124,7 @@ class NativeAppController:
             print("[*] Chay che do Headless/Test. Bo qua khoi tao GUI Window.")
             return True
 
-        # 3. Tạo Native Window qua pywebview (Edge WebView2)
+        # 3. Tạo Native Window qua pywebview (Edge WebView2) hoặc fallback Edge/Chrome --app mode
         try:
             import webview
             self.window = webview.create_window(
@@ -141,19 +141,55 @@ class NativeAppController:
             webview.start(debug=False)
             return True
         except Exception as e:
-            print(f"[-] Loi khoi dong pywebview GUI: {e}")
-            if sys.platform == "win32":
-                try:
-                    import ctypes
-                    ctypes.windll.user32.MessageBoxW(
-                        0,
-                        f"Không thể khởi động cửa sổ Native Desktop: {e}\n\nVui lòng cài đặt Microsoft Edge WebView2 Runtime.",
-                        "Cursor Manager - Native App Error",
-                        0x10 | 0x0
-                    )
-                except Exception:
-                    pass
+            is_missing_pkg = isinstance(e, ImportError) or "No module named 'webview'" in str(e)
+            if is_missing_pkg:
+                print("[*] Chua cai dat thu vien 'pywebview'. Dang tu dong chuyen sang Edge/Chrome Standalone App Mode...")
+                print("    (Tuy chon: chay 'pip install pywebview' de dung cua so nhung WebView2)")
+            else:
+                print(f"[-] Loi khoi dong pywebview GUI: {e}. Dang chuyen sang che do Edge/Chrome App Mode...")
+            return self._launch_fallback_app_window(url, str(e))
+
+    def _launch_fallback_app_window(self, url: str, err_msg: str = "") -> bool:
+        """Fallback mo cua so doc lap bang Edge/Chrome --app mode (khong can pywebview)."""
+        import subprocess
+        import webbrowser
+
+        candidates = []
+        if sys.platform == "win32":
+            pf = os.getenv("ProgramFiles", r"C:\Program Files")
+            pf86 = os.getenv("ProgramFiles(x86)", r"C:\Program Files (x86)")
+            local = os.getenv("LOCALAPPDATA", "")
+            candidates = [
+                os.path.join(pf86, "Microsoft", "Edge", "Application", "msedge.exe"),
+                os.path.join(pf, "Microsoft", "Edge", "Application", "msedge.exe"),
+                os.path.join(pf, "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(pf86, "Google", "Chrome", "Application", "chrome.exe"),
+                os.path.join(local, "Google", "Chrome", "Application", "chrome.exe"),
+            ]
+
+        exe = next((p for p in candidates if p and os.path.exists(p)), None)
+        proc = None
+        try:
+            if exe:
+                proc = subprocess.Popen([exe, f"--app={url}", "--window-size=1440,920"])
+                print(f"[+] Da mo cua so Desktop App qua {os.path.basename(exe)} (--app={url})")
+            else:
+                webbrowser.open(url)
+                print(f"[+] Da mo dashboard trong trinh duyet mac dinh: {url}")
+
+            print("[*] Server dang chay tai", url, "— nhan Ctrl+C de thoat.")
+            while self.running:
+                if proc is not None and proc.poll() is not None:
+                    break
+                time.sleep(0.5)
+            return True
+        except KeyboardInterrupt:
+            return True
+        except Exception as fb_err:
+            print(f"[-] Loi fallback mo trinh duyet: {fb_err} (goc: {err_msg})")
             return False
+        finally:
+            self.on_window_closed()
 
 def main():
     parser = argparse.ArgumentParser(description="Cursor Manager - Native Desktop App")
