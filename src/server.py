@@ -16,10 +16,15 @@ for _p in (_SRC_DIR, _ROOT_DIR):
         sys.path.insert(0, _p)
 
 import time
+import json
+import queue
+import atexit
 import sqlite3
 import threading
+import requests
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
+from app_paths import get_templates_dir, get_static_dir, get_data_dir, get_cookies_dir
 from account_pool import AccountPoolManager, DB_LOCK, DB_FILE
 from rotating_proxy import RotatingCursorProxy
 from cursor_settings import CursorSettingsManager
@@ -68,19 +73,53 @@ def _record_system_event(event_type: str, details: str):
     except Exception:
         pass
 
-# Startup safety: Giai phong toan bo modifier keys neu he thong truoc do bi ket phim
-try:
-    release_all_modifier_keys()
-    _record_system_event("startup", "Server started, modifier keys unlatched")
-except Exception:
-    pass
+# Lightweight in-process SSE EventBroker for sub-50ms UI pushes
+class _EventBroker:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._subscribers: list = []
 
-# Keyboard Unstick Safety Watchdog: Tu dong kiem tra va go ket phim ngam
-_WATCHDOG_RUNNING = True
+    def subscribe(self) -> "queue.Queue[str]":
+        q: "queue.Queue[str]" = queue.Queue(maxsize=32)
+        with self._lock:
+            self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: "queue.Queue[str]") -> None:
+        with self._lock:
+            if q in self._subscribers:
+                self._subscribers.remove(q)
+
+    def publish(self, event_type: str, data: dict) -> None:
+        payload = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        with self._lock:
+            subs = list(self._subscribers)
+        for q in subs:
+            try:
+                q.put_nowait(payload)
+            except queue.Full:
+                try:
+                    q.get_nowait()
+                    q.put_nowait(payload)
+                except Exception:
+                    pass
+
+
+event_broker = _EventBroker()
+
+# Keyboard Unstick Safety Watchdog state (started explicitly via start_background_services)
+_WATCHDOG_RUNNING = False
+_SERVICES_LOCK = threading.Lock()
+_SERVICES_STARTED = False
+_PROXY_RELOAD_TIMER = None
+
+
 def _keyboard_safety_watchdog():
     consecutive_stuck = 0
     while _WATCHDOG_RUNNING:
         time.sleep(4.0)
+        if not _WATCHDOG_RUNNING:
+            break
         try:
             if hasattr(cursor_reloader, "get_modifier_keys_status"):
                 st = cursor_reloader.get_modifier_keys_status()
@@ -89,28 +128,35 @@ def _keyboard_safety_watchdog():
                     if consecutive_stuck >= 2:
                         cursor_reloader.release_all_modifier_keys()
                         _record_system_event("watchdog_unstick", "Watchdog auto-released stuck modifier keys (Alt/Ctrl/Win)")
+                        event_broker.publish("keyboard_alert", {"stuck_released": True})
                         consecutive_stuck = 0
                 else:
                     consecutive_stuck = 0
         except Exception:
             pass
 
-if "unittest" not in sys.modules and "pytest" not in sys.modules:
-    threading.Thread(target=_keyboard_safety_watchdog, daemon=True).start()
 
-app = Flask(__name__, template_folder=os.path.join(_ROOT_DIR, "templates"))
+app = Flask(
+    __name__,
+    template_folder=get_templates_dir(),
+    static_folder=get_static_dir(),
+    static_url_path="/static",
+)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 @app.after_request
 def add_cache_busting_headers(response):
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=300"
+    else:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
-pool = AccountPoolManager(cookies_dir=os.path.join(_ROOT_DIR, "Cookies"))
-settings_manager = CursorSettingsManager(workspace_dir=_ROOT_DIR)
+pool = AccountPoolManager(cookies_dir=get_cookies_dir())
+settings_manager = CursorSettingsManager(workspace_dir=get_data_dir())
 proxy_instance = RotatingCursorProxy(
     proxy_host=os.getenv("CURSOR_PROXY_HOST", "127.0.0.1"),
     proxy_port=int(os.getenv("CURSOR_PROXY_PORT", "8999")),
@@ -118,21 +164,88 @@ proxy_instance = RotatingCursorProxy(
 )
 
 
-# Khi khoi dong server, tu dong dong bo tai khoan dang active tu Cursor va kich hoat Auto-Rotate Watcher
-try:
-    pool.sync_active_from_cursor()
-    if "unittest" not in sys.modules and "pytest" not in sys.modules:
-        pool.start_auto_rotate_watcher(interval_seconds=5)
-        print("[*] Da kich hoat Auto-Rotate Watcher ngam (chu ky 5s)!")
-        pool.start_startup_quota_sync(max_workers=5)
-        print("[*] Da kich hoat Startup Quota Sync ngam (5 luong kiem tra quota)!")
+def _schedule_proxy_cache_reload():
+    global _PROXY_RELOAD_TIMER
+    try:
+        if _PROXY_RELOAD_TIMER is not None:
+            _PROXY_RELOAD_TIMER.cancel()
+        t = threading.Timer(0.25, proxy_instance.pool.load_cache_from_db)
+        t.daemon = True
+        _PROXY_RELOAD_TIMER = t
+        t.start()
+    except Exception:
+        pass
+
+
+def _on_pool_changed(event_type: str, data: dict):
+    _schedule_proxy_cache_reload()
+    event_broker.publish(event_type, data)
+
+
+pool.add_change_listener(_on_pool_changed)
+proxy_instance.pool.on_token_exhausted = lambda info: event_broker.publish("proxy_exhausted", info)
+
+
+def start_background_services(run_startup_sync: bool = True) -> None:
+    """Explicitly start background daemon services (idempotent; zero import-time side effects)."""
+    global _SERVICES_STARTED, _WATCHDOG_RUNNING
+    with _SERVICES_LOCK:
+        if _SERVICES_STARTED:
+            return
+        _SERVICES_STARTED = True
+        _WATCHDOG_RUNNING = True
+
+    try:
+        release_all_modifier_keys()
+        _record_system_event("startup", "CursorRouter v3.0 started, modifier keys unlatched")
+    except Exception:
+        pass
+
+    threading.Thread(target=_keyboard_safety_watchdog, daemon=True, name="KeyboardSafetyWatchdog").start()
+
+    try:
+        pool.sync_active_from_cursor(force_fetch_api=False, allow_remote_fetch=False)
+        cfg = settings_manager.get_auto_switch_config()
+        if cfg.get("auto_rotate_enabled", True):
+            pool.start_auto_rotate_watcher(interval_seconds=5)
+            print("[*] Da kich hoat Auto-Rotate Watcher ngam (chu ky 5s)!")
+        if run_startup_sync:
+            pool.start_startup_quota_sync(max_workers=12)
+            print("[*] Da kich hoat Startup Quota Sync ngam (HTTP/2 Async, 12 concurrency)!")
         try:
             proxy_instance.start_in_thread()
             print(f"[*] Da tu dong khoi dong Rotating Proxy tren port {proxy_instance.proxy_port}!")
         except Exception as pe:
             print(f"[-] Loi khoi dong proxy: {pe}")
-except Exception as e:
-    print(f"[*] Khoi tao sync active / watcher / startup sync: {e}")
+    except Exception as e:
+        print(f"[*] Khoi tao sync active / watcher / startup sync: {e}")
+
+
+def stop_background_services() -> None:
+    """Cleanly stop all background threads and release modifier keys."""
+    global _SERVICES_STARTED, _WATCHDOG_RUNNING
+    with _SERVICES_LOCK:
+        _WATCHDOG_RUNNING = False
+        _SERVICES_STARTED = False
+    try:
+        pool.stop_auto_rotate_watcher()
+    except Exception:
+        pass
+    try:
+        pool.stop_startup_quota_sync()
+    except Exception:
+        pass
+    try:
+        proxy_instance.stop_thread()
+    except Exception:
+        pass
+    try:
+        release_all_modifier_keys()
+    except Exception:
+        pass
+
+
+atexit.register(stop_background_services)
 
 SERVER_START_TIME = time.time()
 
@@ -177,91 +290,159 @@ def api_quota_snapshots():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/events")
+def api_events():
+    """Server-Sent Events (SSE) stream pushing real-time pool, sync, proxy, and keyboard deltas."""
+    def _stream():
+        q = event_broker.subscribe()
+        try:
+            yield f"event: connected\ndata: {json.dumps({'version': pool.state_version, 'server_time': int(time.time())})}\n\n"
+            while True:
+                try:
+                    msg = q.get(timeout=15.0)
+                    yield msg
+                except queue.Empty:
+                    yield ": ping\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            event_broker.unsubscribe(q)
+
+    return Response(
+        _stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+def _build_status_payload() -> dict:
+    c_status = get_cursor_status(use_cache=True)
+    active = pool.sync_active_from_cursor(force_fetch_api=False, allow_remote_fetch=False)
+    if not active:
+        active = pool.storage.get_active_account()
+
+    if isinstance(active, dict):
+        active = dict(active)
+        active["cursor_running"] = c_status.get("is_running", False)
+        active["cursor_window"] = c_status.get("has_window", False)
+        active["cursor_title"] = c_status.get("window_title", "")
+        active["cursor_exe"] = c_status.get("exe_path", "")
+
+        c_settings = settings_manager.get_settings()
+        active["cursor_model"] = c_settings.get("default_model", "default")
+        active["is_proxy_routed"] = c_settings.get("is_proxy_routed", False)
+        active["auto_switch_config"] = settings_manager.get_auto_switch_config()
+
+        email = (active.get("email") or "").strip().lower()
+        token = active.get("access_token")
+        if not active.get("usage_fetched"):
+            persisted = pool.get_persisted_account_quota(email=email, token=token)
+            if persisted:
+                if active.get("usagePercent") is None or (active.get("usagePercent") == 0 and persisted.get("usage_percent", 0) > 0):
+                    active["usagePercent"] = persisted["usage_percent"]
+                if active.get("totalSpend") is None or (active.get("totalSpend") == 0 and persisted.get("total_spend", 0) > 0):
+                    active["totalSpend"] = persisted["total_spend"]
+                if not active.get("displayMessage") and persisted.get("display_message"):
+                    active["displayMessage"] = persisted["display_message"]
+                if not active.get("status") or active.get("status") == "PENDING":
+                    active["status"] = persisted.get("status", "READY")
+                if persisted.get("last_checked"):
+                    active["last_checked"] = persisted["last_checked"]
+
+        active["usagePercent"] = active.get("usagePercent", 0.0) or 0.0
+        active["totalSpend"] = active.get("totalSpend", 0.0) or 0.0
+        active["usage_percent"] = active["usagePercent"]
+        active["total_spend"] = active["totalSpend"]
+
+        now_ts = int(time.time())
+        active["server_time"] = now_ts
+        active["server_time_iso"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
+        active["uptime_seconds"] = int(now_ts - SERVER_START_TIME)
+        active["last_sync"] = active.get("last_checked") or now_ts
+        active["has_token"] = bool(active.get("has_token") or token)
+        # Never leak raw JWTs over status endpoint
+        active.pop("access_token", None)
+        active.pop("refresh_token", None)
+    else:
+        now_ts = int(time.time())
+        active = {
+            "cursor_running": c_status.get("is_running", False),
+            "cursor_window": c_status.get("has_window", False),
+            "cursor_title": c_status.get("window_title", ""),
+            "cursor_exe": c_status.get("exe_path", ""),
+            "email": None,
+            "usage_percent": 0.0,
+            "usagePercent": 0.0,
+            "total_spend": 0.0,
+            "totalSpend": 0.0,
+            "server_time": now_ts,
+            "server_time_iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts)),
+            "uptime_seconds": int(now_ts - SERVER_START_TIME),
+            "last_sync": now_ts,
+        }
+
+    active["startup_sync"] = pool.get_startup_sync_progress()
+    return active
+
+
+@app.route("/api/dashboard/snapshot", methods=["GET"])
+def api_dashboard_snapshot():
+    """Single lightweight endpoint replacing multi-endpoint 2.5s polling."""
+    try:
+        since_ver = request.args.get("since_version", type=int)
+        include_accounts = request.args.get("include_accounts", "0").lower() in ("1", "true", "yes")
+        status_payload = _build_status_payload()
+        kb_status = cursor_reloader.get_modifier_keys_status() if hasattr(cursor_reloader, "get_modifier_keys_status") else {}
+
+        payload = {
+            "success": True,
+            "version": pool.state_version,
+            "server_time": status_payload["server_time"],
+            "server_time_iso": status_payload["server_time_iso"],
+            "uptime_seconds": status_payload["uptime_seconds"],
+            "status": status_payload,
+            "stats": pool.get_stats_summary(),
+            "auto_rotate": {
+                "enabled": getattr(pool, "auto_rotate_enabled", False),
+                "last_event": getattr(pool, "last_rotation_event", None),
+                "threshold": pool.QUOTA_EXHAUSTION_THRESHOLD,
+            },
+            "proxy": {
+                "running": bool(proxy_instance.is_running()),
+                "host": proxy_instance.proxy_host,
+                "port": proxy_instance.proxy_port,
+                "lookup_strategy": proxy_instance.lookup_strategy,
+                "midstream_strategy": proxy_instance.midstream_strategy,
+                "pool_stats": proxy_instance.pool.get_stats(),
+            },
+            "keyboard": kb_status,
+            "startup_sync": status_payload.get("startup_sync"),
+            "batch_progress": pool.get_batch_progress(),
+        }
+        if include_accounts and (since_ver is None or since_ver != pool.state_version):
+            payload["accounts"] = pool.get_all_accounts(include_secrets=False)
+        return jsonify(payload)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/status")
 def api_status():
     """Lay trang thai toan dien: Cursor app running, window, active account, model, auto-switch config va persisted quota."""
     try:
-        c_status = get_cursor_status()
-        active = pool.sync_active_from_cursor(force_fetch_api=False, allow_remote_fetch=False)
-        if not active:
-            active = pool.storage.get_active_account()
-
-        if isinstance(active, dict):
-            active["cursor_running"] = c_status.get("is_running", False)
-            active["cursor_window"] = c_status.get("has_window", False)
-            active["cursor_title"] = c_status.get("window_title", "")
-            active["cursor_exe"] = c_status.get("exe_path", "")
-            
-            c_settings = settings_manager.get_settings()
-            active["cursor_model"] = c_settings.get("default_model", "default")
-            active["is_proxy_routed"] = c_settings.get("is_proxy_routed", False)
-            active["auto_switch_config"] = settings_manager.get_auto_switch_config()
-
-            # Persisted Quota Guarantee:
-            # Truy xuat quota da duoc persist tu DB neu active thieu hoac bi 0 (khi remote API chua tra ve live usage_fetched)
-            email = (active.get("email") or "").strip().lower()
-            token = active.get("access_token")
-            if not active.get("usage_fetched"):
-                persisted = pool.get_persisted_account_quota(email=email, token=token)
-                if persisted:
-                    if active.get("usagePercent") is None or (active.get("usagePercent") == 0 and persisted.get("usage_percent", 0) > 0):
-                        active["usagePercent"] = persisted["usage_percent"]
-                    if active.get("totalSpend") is None or (active.get("totalSpend") == 0 and persisted.get("total_spend", 0) > 0):
-                        active["totalSpend"] = persisted["total_spend"]
-                    if not active.get("displayMessage") and persisted.get("display_message"):
-                        active["displayMessage"] = persisted["display_message"]
-                    if not active.get("status") or active.get("status") == "PENDING":
-                        active["status"] = persisted.get("status", "READY")
-                    if persisted.get("last_checked"):
-                        active["last_checked"] = persisted["last_checked"]
-
-            # Dong bo ca 2 format snake_case va camelCase
-            active["usage_percent"] = active.get("usagePercent", 0.0) or 0.0
-            active["total_spend"] = active.get("totalSpend", 0.0) or 0.0
-
-            # Real-time synchronization metrics
-            now_ts = int(time.time())
-            active["server_time"] = now_ts
-            active["server_time_iso"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
-            active["uptime_seconds"] = int(now_ts - SERVER_START_TIME)
-            active["last_sync"] = active.get("last_checked") or now_ts
-        else:
-            now_ts = int(time.time())
-            active = {
-                "cursor_running": c_status.get("is_running", False),
-                "cursor_window": c_status.get("has_window", False),
-                "cursor_title": c_status.get("window_title", ""),
-                "cursor_exe": c_status.get("exe_path", ""),
-                "email": None,
-                "usage_percent": 0.0,
-                "usagePercent": 0.0,
-                "total_spend": 0.0,
-                "totalSpend": 0.0,
-                "server_time": now_ts,
-                "server_time_iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts)),
-                "uptime_seconds": int(now_ts - SERVER_START_TIME),
-                "last_sync": now_ts
-            }
-
-        active["startup_sync"] = pool.get_startup_sync_progress()
-        return jsonify(active)
+        return jsonify(_build_status_payload())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/accounts")
 def api_accounts():
-    """Lay toan bo danh sach tai khoan trong pool voi masked_token an toan."""
+    """Lay toan bo danh sach tai khoan trong pool voi masked_token an toan (khong lo raw access_token)."""
     try:
-        accounts = pool.get_all_accounts()
-        for a in accounts:
-            tok = a.get("access_token")
-            if tok and isinstance(tok, str) and len(tok) > 12:
-                a["masked_token"] = f"{tok[:6]}...{tok[-4:]}"
-            else:
-                a["masked_token"] = "None"
-            # Strip dangerous raw full cookies and refresh tokens from public account list
-            a.pop("cookie_full", None)
-            a.pop("refresh_token", None)
+        accounts = pool.get_all_accounts(include_secrets=False)
         return jsonify(accounts)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -347,7 +528,7 @@ def api_debug_system_info():
             except Exception:
                 pass
 
-        accounts = pool.get_all_accounts()
+        accounts = pool.get_all_accounts(include_secrets=False)
         total_accounts = len(accounts)
         ready_count = sum(1 for a in accounts if (a.get("usage_percent") or 0) < pool.QUOTA_EXHAUSTION_THRESHOLD and a.get("status") in ("READY", "HIGH_USAGE"))
         exhausted_count = sum(1 for a in accounts if (a.get("usage_percent") or 0) >= pool.QUOTA_EXHAUSTION_THRESHOLD or a.get("status") == "EXHAUSTED")
@@ -398,34 +579,51 @@ def api_debug_system_info():
 
 @app.route("/api/stats")
 def api_stats():
-    """Lay thong ke dashboard: Tong so, San sang (<100%), Het Quota / Can doi (>=100%), Pending, Two-Tier & Blacklist."""
+    """Lay thong ke dashboard phan tach khong chong cheo (fast non-decrypting read)."""
     try:
-        accounts = pool.get_all_accounts()
+        try:
+            accounts = pool.get_all_accounts(include_secrets=False)
+        except TypeError:
+            accounts = pool.get_all_accounts()
+        now_ts = int(time.time())
         threshold = pool.QUOTA_EXHAUSTION_THRESHOLD
-        tier1_th = pool.TIER1_THRESHOLD
+        warn = pool.QUOTA_WARNING_THRESHOLD
         total = len(accounts)
-        ready = sum(1 for a in accounts if a.get("status") in ("READY", "HIGH_USAGE") and (a.get("usage_percent") or 0) < threshold)
-        tier1 = sum(1 for a in accounts if a.get("status") in ("READY", "HIGH_USAGE") and (a.get("usage_percent") or 0) < tier1_th and not a.get("in_cooldown"))
-        tier2 = sum(1 for a in accounts if a.get("status") in ("READY", "HIGH_USAGE") and tier1_th <= (a.get("usage_percent") or 0) < threshold and not a.get("in_cooldown"))
-        blacklist = sum(1 for a in accounts if a.get("in_cooldown") or (a.get("status") not in ("EXPIRED", "PENDING") and (a.get("status") == "EXHAUSTED" or (a.get("usage_percent") or 0) >= threshold)))
-        exhausted = sum(1 for a in accounts if a.get("status") not in ("EXPIRED", "PENDING") and (a.get("status") == "EXHAUSTED" or (a.get("usage_percent") or 0) >= threshold))
-        pending = sum(1 for a in accounts if a.get("status") == "PENDING")
-        expired = sum(1 for a in accounts if a.get("status") == "EXPIRED")
+        tier1 = tier2 = ready = exhausted = pending = expired = blacklist = 0
+        for a in accounts:
+            st = (a.get("status") or "PENDING").upper()
+            usage = float(a.get("usage_percent") or 0.0)
+            cd = int(a.get("cooldown_until") or 0)
+            if st == "EXPIRED":
+                expired += 1
+            elif st == "PENDING":
+                pending += 1
+            elif st == "EXHAUSTED" or usage >= threshold or cd > now_ts:
+                exhausted += 1
+                blacklist += 1
+            else:
+                ready += 1
+                if usage >= warn:
+                    tier2 += 1
+                else:
+                    tier1 += 1
         return jsonify({
             "total": total,
             "ready": ready,
             "tier1": tier1,
-            "tier1_count": tier1,
             "tier2": tier2,
+            "tier1_count": tier1,
             "tier2_count": tier2,
+            "high_usage": exhausted,
+            "exhausted": exhausted,
             "blacklist": blacklist,
             "blacklist_count": blacklist,
             "cooldown_count": blacklist,
-            "exhausted": exhausted,
             "pending": pending,
             "expired": expired,
             "threshold": threshold,
-            "tier1_threshold": tier1_th
+            "warning_threshold": warn,
+            "tier1_threshold": warn,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -474,7 +672,7 @@ def api_cookies_info():
         if not os.path.exists(cdir):
             os.makedirs(cdir, exist_ok=True)
         files = [f for f in os.listdir(cdir) if (f.lower().endswith(".txt") or f.lower().endswith(".cookie")) and os.path.isfile(os.path.join(cdir, f))]
-        all_accounts = pool.get_all_accounts()
+        all_accounts = pool.get_all_accounts(include_secrets=False)
         valid_tokens = sum(1 for a in all_accounts if a.get("has_token") or a.get("access_token"))
         
         # Quota status breakdown
@@ -543,7 +741,7 @@ def api_cookies_convert():
         scanned = pool.scan_cookies_folder()
         started = pool.start_startup_quota_sync(max_workers=12, force=True)
         _record_system_event("cookie_convert", f"1-Click convert initiated. Scanned: {scanned}, workers: 12")
-        all_accounts = pool.get_all_accounts()
+        all_accounts = pool.get_all_accounts(include_secrets=False)
         return jsonify({
             "success": True,
             "scanned": scanned,
@@ -554,9 +752,50 @@ def api_cookies_convert():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/api/cookies/paste", methods=["POST"])
+def api_cookies_paste():
+    """Nhan 1 hoac nhieu cookie dan truc tiep (Raw, Netscape, JSON, Header) va kich hoat dong bo HTTP/2."""
+    try:
+        data = request.get_json(silent=True) or {}
+        raw_text = data.get("content") or data.get("cookies") or data.get("text") or ""
+        auto_convert = bool(data.get("auto_convert", True))
+        if not raw_text or not str(raw_text).strip():
+            return jsonify({"success": False, "error": "Nội dung cookie đang trống"}), 400
+
+        res = pool.import_pasted_cookies(str(raw_text))
+        if not res.get("success"):
+            return jsonify(res), 400
+
+        sync_started = False
+        if auto_convert:
+            sync_started = pool.start_startup_quota_sync(max_workers=12, force=True)
+
+        _record_system_event("cookie_paste", f"Pasted {res.get('parsed', 0)} cookies (formats: {res.get('formats')})")
+        return jsonify({
+            **res,
+            "sync_started": sync_started,
+            "message": f"Đã nạp {res.get('parsed', 0)} cookie ({', '.join(res.get('formats', []))}) và kích hoạt đồng bộ HTTP/2!",
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/accounts/capture-active", methods=["POST"])
+def api_capture_active_session():
+    """Capture the currently signed-in Cursor IDE desktop session token into the encrypted pool."""
+    try:
+        res = pool.capture_active_cursor_session()
+        if res.get("success"):
+            _record_system_event("capture_session", f"Captured {res.get('email')} ({res.get('token_type')})")
+            return jsonify(res)
+        return jsonify(res), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/cookies/upload", methods=["POST"])
 def api_cookies_upload():
-    """Nhan file cookie tu giao dien Dropzone, luu vao thu muc Cookies va tu dong convert."""
+    """Nhan file cookie tu giao dien Dropzone (.txt, .cookie, .json), luu vao thu muc Cookies va tu dong convert."""
     try:
         if "file" not in request.files and "files" not in request.files:
             return jsonify({"success": False, "error": "Không tìm thấy file tải lên"}), 400
@@ -567,10 +806,11 @@ def api_cookies_upload():
         os.makedirs(cdir, exist_ok=True)
         
         for f in uploaded_files:
-            fname = os.path.basename(f.filename)
+            fname = os.path.basename(f.filename or "")
             if not fname:
                 continue
-            if not fname.endswith(".txt"):
+            low = fname.lower()
+            if not (low.endswith(".txt") or low.endswith(".cookie") or low.endswith(".json")):
                 fname = f"{fname}.txt"
             target_path = os.path.join(cdir, fname)
             f.save(target_path)
@@ -582,7 +822,7 @@ def api_cookies_upload():
             "success": True,
             "saved": saved_count,
             "scanned": scanned,
-            "message": f"Đã lưu {saved_count} file và khởi chạy tiến trình nạp token 12 luồng!"
+            "message": f"Đã lưu {saved_count} file và khởi chạy đồng bộ HTTP/2!"
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -641,7 +881,14 @@ def api_switch(account_id):
         success = pool.switch_to_account(account_id, auto_reload=auto_reload, auto_continue=auto_cont, reset_mode=reset_mode)
         if success:
             active = pool.sync_active_from_cursor() or pool.storage.get_active_account()
-            return jsonify({"success": True, "active": active})
+            tok_type = (active or {}).get("token_type") or "unknown"
+            warning = None
+            if tok_type == "web":
+                warning = (
+                    "Tài khoản này đang dùng Web Cookie token (Cursor chặn PKCE với lỗi FRESH_SIGN_IN_REQUIRED). "
+                    "Cursor IDE có thể báo 'Authentication error' khi chat — hãy dùng cookie vừa đăng nhập mới hoặc bấm 'Lưu Acc Từ Cursor' sau khi đăng nhập IDE."
+                )
+            return jsonify({"success": True, "active": active, "token_type": tok_type, "warning": warning})
         else:
             return jsonify({"success": False, "error": "Loi khi nap vao Cursor SQLite"}), 400
     except Exception as e:
@@ -688,20 +935,24 @@ def api_rotate():
         current_email = (current_active.get("email") or "").strip()
         
         if mark_current and current_email:
+            now_ts = int(time.time())
+            cd_until = now_ts + pool.BLACKLIST_COOLDOWN_SECONDS
             with DB_LOCK:
                 con = sqlite3.connect(DB_FILE, timeout=10.0)
-                cur = con.cursor()
-                cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE LOWER(email) = LOWER(?)", (int(time.time()), current_email))
-                con.commit()
-                con.close()
+                try:
+                    cur = con.cursor()
+                    cur.execute("PRAGMA table_info(accounts);")
+                    cols = {r[1] for r in cur.fetchall()}
+                    if "cooldown_until" in cols:
+                        cur.execute("UPDATE accounts SET status = 'EXHAUSTED', cooldown_until = ?, last_checked = ? WHERE LOWER(email) = LOWER(?)", (cd_until, now_ts, current_email))
+                    else:
+                        cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE LOWER(email) = LOWER(?)", (now_ts, current_email))
+                    con.commit()
+                finally:
+                    con.close()
             print(f"[FORCE-ROTATE] Da danh dau {current_email} la EXHAUSTED")
 
-        # Tu dong spoof Hardware ID de tranh rate limit cap may tu Cursor
-        try:
-            settings_manager.spoof_storage_ids()
-        except Exception as sp_err:
-            print(f"[-] Loi spoof hardware IDs: {sp_err}")
-
+        # Anti-detect fingerprint duoc xu ly thong nhat ben trong switch_to_account theo antidetect_mode
         best = pool.auto_switch_best_account(notify=True, prev_email=current_email, reset_mode=reset_mode)
         if best:
             active = pool.sync_active_from_cursor() or pool.storage.get_active_account()
@@ -803,7 +1054,7 @@ def api_notify_test():
     """Gui thong bao test toi Windows notification banner."""
     try:
         from windows_notifier import send_windows_notification
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         title = data.get("title", "Cursor Manager")
         msg = data.get("message", "Thử nghiệm thông báo Windows Native thành công! 🚀")
         ok = send_windows_notification(title, msg, async_exec=False)
@@ -856,7 +1107,7 @@ def api_proxy_toggle():
 def api_proxy_config():
     """Cap nhat cau hinh Rotating Proxy."""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         if "lookup_strategy" in data:
             proxy_instance.set_lookup_strategy(data["lookup_strategy"])
         if "midstream_strategy" in data:
@@ -1029,7 +1280,7 @@ def api_cursor_settings():
     """Doc hoac cap nhat settings.json cua Cursor (model preference, telemetry, privacy)."""
     try:
         if request.method == "POST":
-            updates = request.get_json() or {}
+            updates = request.get_json(silent=True) or {}
             res = settings_manager.update_settings(updates)
             return jsonify({"success": True, "settings": res})
         else:
@@ -1090,7 +1341,7 @@ def api_antidetect_config():
     """Doc hoac cap nhat che do Anti-Detect Fingerprint Isolation."""
     try:
         if request.method == "POST":
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             mode = data.get("antidetect_mode")
             if mode not in ("account_locked", "stealth_randomize", "native_standard"):
                 return jsonify({"success": False, "error": "Invalid antidetect_mode. Allowed: account_locked, stealth_randomize, native_standard"}), 400
@@ -1156,7 +1407,7 @@ def api_cursor_cursorrules():
     """Doc hoac luu file .cursorrules truc tiep tu dashboard."""
     try:
         if request.method == "POST":
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             content = data.get("content", "")
             path = data.get("path")
             res = settings_manager.save_cursorrules(content, custom_path=path)
@@ -1187,7 +1438,7 @@ def api_cursor_network_test():
         error_msg = str(e)
         upstream_latency_ms = round((time.time() - start_t) * 1000, 1)
 
-    proxy_running = bool(proxy_instance.is_running if hasattr(proxy_instance, 'is_running') else True)
+    proxy_running = bool(proxy_instance.is_running() if callable(getattr(proxy_instance, 'is_running', None)) else False)
 
     return jsonify({
         "success": True,
@@ -1196,7 +1447,7 @@ def api_cursor_network_test():
         "upstream_status": upstream_status,
         "latency_ms": upstream_latency_ms,
         "proxy_running": proxy_running,
-        "proxy_port": 8999,
+        "proxy_port": proxy_instance.proxy_port,
         "error": error_msg
     })
 
@@ -1210,7 +1461,7 @@ def api_cursor_profiles():
     try:
         data = settings_manager.get_all_profiles()
         # Thong ke so luong tai khoan dang su dung tung profile
-        accounts = pool.get_all_accounts()
+        accounts = pool.get_all_accounts(include_secrets=False)
         profile_counts = {}
         for acc in accounts:
             p = acc.get("config_profile") or "default"
@@ -1233,7 +1484,7 @@ def api_cursor_profiles():
 def api_cursor_profiles_save():
     """Tao moi hoac cap nhat mot profile cau hinh."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         profile_id = body.get("profile_id") or body.get("id") or body.get("name", "").lower().replace(" ", "_")
         res = settings_manager.save_profile(profile_id, body)
         return jsonify({"success": True, "profile": res})
@@ -1244,7 +1495,7 @@ def api_cursor_profiles_save():
 def api_cursor_profiles_delete():
     """Xoa mot profile cau hinh (khong cho phep xoa 'default')."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         profile_id = body.get("profile_id") or body.get("id")
         if not profile_id or profile_id in ("default", "agent_turbo", "cost_saver", "privacy_stealth"):
             return jsonify({"success": False, "error": "Không thể xóa hồ sơ mặc định của hệ thống"}), 400
@@ -1257,7 +1508,7 @@ def api_cursor_profiles_delete():
 def api_cursor_profiles_apply_current():
     """Ap dung mot profile vao Cursor hien tai."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         profile_id = body.get("profile_id") or body.get("id") or "default"
         res = settings_manager.apply_profile_to_cursor(profile_id)
         return jsonify(res)
@@ -1268,7 +1519,7 @@ def api_cursor_profiles_apply_current():
 def api_cursor_profiles_apply_all():
     """Ap dung mot profile cho TOAN BO tai khoan trong pool va Cursor hien tai."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         profile_id = body.get("profile_id") or body.get("id") or "default"
         updated_count = pool.apply_profile_to_all_accounts(profile_id)
         return jsonify({
@@ -1284,7 +1535,7 @@ def api_cursor_profiles_apply_all():
 def api_cursor_profiles_assign_account():
     """Gan profile cho mot tai khoan cu the theo ID."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         account_id = body.get("account_id")
         profile_id = body.get("profile_id") or body.get("id") or "default"
         if not account_id:
@@ -1307,7 +1558,7 @@ def api_cursor_profiles_export():
 def api_cursor_profiles_import():
     """Nhap danh sach profiles tu JSON."""
     try:
-        body = request.get_json() or {}
+        body = request.get_json(silent=True) or {}
         res = settings_manager.import_profiles(body)
         return jsonify(res)
     except Exception as e:
@@ -1318,8 +1569,10 @@ def api_cursor_app_status():
     """Kiem tra trang thai tien trinh va cua so ung dung Cursor."""
     try:
         from cursor_reloader import get_cursor_status
-        status = get_cursor_status()
-        active = pool.storage.get_active_account()
+        status = get_cursor_status(use_cache=True)
+        active = dict(pool.storage.get_active_account() or {})
+        active.pop("access_token", None)
+        active.pop("refresh_token", None)
         settings = settings_manager.get_settings()
         return jsonify({
             "success": True,
@@ -1479,7 +1732,11 @@ def api_updater_apply():
 
 
 if __name__ == "__main__":
-    port = 7860
+    host = os.getenv("CURSOR_HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "7860"))
+    start_background_services()
     print(f"\n========================================================")
-    print(f"  🚀 CURSOR MANAGER HOST DANG CHAY TAI:")
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    print(f"  [>] CURSORROUTER v3.0 HOST RUNNING AT:")
+    print(f"  [>] http://{host}:{port}")
+    print(f"========================================================\n")
+    app.run(host=host, port=port, debug=False, threaded=True)

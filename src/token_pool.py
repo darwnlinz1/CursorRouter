@@ -1,32 +1,41 @@
 """
-High-Performance In-Memory & SQLite Token Pool Manager for Cursor AI
-====================================================================
-
-Maintains healthy (< 50% usage) ready Cursor accounts in pure RAM for
-sub-0.05ms proactive swaps, with non-blocking asynchronous SQLite persistence
+High-Performance In-Memory & SQLite Token Pool Manager for Cursor AI (v3.0)
+===========================================================================
+Maintains healthy ready Cursor accounts in pure RAM for sub-0.05ms proactive swaps,
+with transparent `enc:v1:` LRU decryption, Two-Tier priority ordering (Tier 1 <50%
+before Tier 2 50-99%), cooldown awareness, and non-blocking SQLite persistence
 to cursor_accounts.db when an account is locked or exhausted.
 """
 
 import os
+import json
 import time
 import sqlite3
 import threading
-from typing import Optional, Dict, Any, List, Set, Union
-from chat_lock_detector import QUOTA_EXHAUSTION_THRESHOLD
+from typing import Optional, Dict, Any, List, Set, Union, Callable
+
+from app_paths import get_db_path
+from token_cipher import decrypt_token, compute_token_hash
+from chat_lock_detector import QUOTA_EXHAUSTION_THRESHOLD, QUOTA_WARNING_THRESHOLD
+
 
 class TokenPoolManager:
     """
-    Manages accounts for transparent rotation.
+    Manages accounts for transparent proxy rotation.
     Combines sub-0.05ms in-memory cache lookups with background SQLite persistence.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        on_token_exhausted: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ):
         if db_path is None:
-            root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-            self.db_path = os.getenv("CURSOR_ACCOUNTS_DB", os.path.abspath(os.path.join(root_dir, "cursor_accounts.db")))
+            self.db_path = get_db_path()
         else:
             self.db_path = os.path.abspath(db_path)
 
+        self.on_token_exhausted = on_token_exhausted
         self.lock = threading.RLock()
         self._memory_cache: List[Dict[str, Any]] = []
         self._rate_limited_tokens: Set[str] = set()
@@ -34,8 +43,28 @@ class TokenPoolManager:
         self._current_index = 0
         self.load_cache_from_db()
 
+    def _hydrate_row(self, row: sqlite3.Row) -> Optional[Dict[str, Any]]:
+        """Decrypt access_token/refresh_token and parse optional hardware_fingerprint."""
+        d = dict(row)
+        raw_tok = d.get("access_token")
+        plain_tok = decrypt_token(raw_tok) if raw_tok else None
+        if not plain_tok or len(plain_tok) <= 20:
+            return None
+        d["access_token"] = plain_tok
+        if d.get("refresh_token"):
+            d["refresh_token"] = decrypt_token(d["refresh_token"])
+        fp_raw = d.get("hardware_fingerprint")
+        if isinstance(fp_raw, str) and fp_raw.strip():
+            try:
+                d["fingerprint"] = json.loads(fp_raw)
+            except Exception:
+                d["fingerprint"] = None
+        else:
+            d["fingerprint"] = fp_raw if isinstance(fp_raw, dict) else None
+        return d
+
     def load_cache_from_db(self) -> int:
-        """Loads ready accounts (< 50% usage) from SQLite into memory for sub-millisecond lookups."""
+        """Loads healthy accounts from SQLite into RAM, decrypting `enc:v1:` tokens via LRU cache."""
         if not os.path.exists(self.db_path):
             return 0
         with self.lock:
@@ -48,30 +77,47 @@ class TokenPoolManager:
                     cur.execute("PRAGMA journal_mode=WAL;")
                 except Exception:
                     pass
-                try:
-                    cur.execute("""
-                        SELECT id, email, access_token, usage_percent, total_spend, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND access_token IS NOT NULL 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                    """, (QUOTA_EXHAUSTION_THRESHOLD,))
-                except sqlite3.OperationalError:
-                    # Fallback if total_spend column is not present in legacy schema
-                    cur.execute("""
-                        SELECT id, email, access_token, usage_percent, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND access_token IS NOT NULL 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                    """, (QUOTA_EXHAUSTION_THRESHOLD,))
 
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+
+                select_cols = ["id", "email", "access_token", "usage_percent", "status"]
+                for opt in ("total_spend", "refresh_token", "display_name", "auth_id", "cooldown_until", "hardware_fingerprint"):
+                    if opt in cols:
+                        select_cols.append(opt)
+
+                now_ts = int(time.time())
+                where_parts = [
+                    "status IN ('READY', 'HIGH_USAGE')",
+                    "(usage_percent IS NULL OR usage_percent < ?)",
+                    "access_token IS NOT NULL",
+                    "length(access_token) > 20",
+                ]
+                params: List[Any] = [QUOTA_EXHAUSTION_THRESHOLD]
+                if "cooldown_until" in cols:
+                    where_parts.append("(cooldown_until IS NULL OR cooldown_until <= ?)")
+                    params.append(now_ts)
+
+                sql = f"""
+                    SELECT {', '.join(select_cols)}
+                    FROM accounts
+                    WHERE {' AND '.join(where_parts)}
+                    ORDER BY
+                        CASE WHEN COALESCE(usage_percent, 0.0) < ? THEN 0 ELSE 1 END ASC,
+                        COALESCE(usage_percent, 0.0) ASC,
+                        id ASC
+                """
+                params.append(QUOTA_WARNING_THRESHOLD)
+                cur.execute(sql, tuple(params))
                 rows = cur.fetchall()
-                self._memory_cache = [dict(r) for r in rows]
+
+                hydrated = []
+                for r in rows:
+                    item = self._hydrate_row(r)
+                    if item:
+                        hydrated.append(item)
+
+                self._memory_cache = hydrated
                 self._token_map = {acc["access_token"]: acc for acc in self._memory_cache}
                 self._current_index = 0
                 return len(self._memory_cache)
@@ -93,7 +139,7 @@ class TokenPoolManager:
         return set(exclude_tokens)
 
     def get_token_from_db_direct(self, exclude_tokens: Optional[Union[str, Set[str], List[str]]] = None) -> Optional[Dict[str, Any]]:
-        """Direct SQLite query for next best READY account. Measures raw DB query time."""
+        """Direct SQLite query for next best healthy account, decrypting tokens transparently."""
         excludes = self._normalize_excludes(exclude_tokens)
         t0 = time.perf_counter_ns()
         con = None
@@ -101,63 +147,48 @@ class TokenPoolManager:
             con = sqlite3.connect(self.db_path, timeout=5.0)
             con.row_factory = sqlite3.Row
             cur = con.cursor()
+            cur.execute("PRAGMA table_info(accounts);")
+            cols = {r[1] for r in cur.fetchall()}
 
-            try:
-                if excludes:
-                    placeholders = ",".join("?" for _ in excludes)
-                    cur.execute(f"""
-                        SELECT id, email, access_token, usage_percent, total_spend, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND access_token NOT IN ({placeholders}) 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                        LIMIT 1
-                    """, (QUOTA_EXHAUSTION_THRESHOLD, *excludes))
-                else:
-                    cur.execute("""
-                        SELECT id, email, access_token, usage_percent, total_spend, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                        LIMIT 1
-                    """, (QUOTA_EXHAUSTION_THRESHOLD,))
-            except sqlite3.OperationalError:
-                # Fallback for tables without total_spend column
-                if excludes:
-                    placeholders = ",".join("?" for _ in excludes)
-                    cur.execute(f"""
-                        SELECT id, email, access_token, usage_percent, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND access_token NOT IN ({placeholders}) 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                        LIMIT 1
-                    """, (QUOTA_EXHAUSTION_THRESHOLD, *excludes))
-                else:
-                    cur.execute("""
-                        SELECT id, email, access_token, usage_percent, status
-                        FROM accounts
-                        WHERE status IN ('READY', 'HIGH_USAGE') 
-                          AND (usage_percent IS NULL OR usage_percent < ?) 
-                          AND length(access_token) > 20
-                        ORDER BY usage_percent ASC, id ASC
-                        LIMIT 1
-                    """, (QUOTA_EXHAUSTION_THRESHOLD,))
+            select_cols = ["id", "email", "access_token", "usage_percent", "status"]
+            for opt in ("total_spend", "refresh_token", "display_name", "auth_id", "cooldown_until", "hardware_fingerprint"):
+                if opt in cols:
+                    select_cols.append(opt)
 
-            row = cur.fetchone()
-            t1 = time.perf_counter_ns()
+            now_ts = int(time.time())
+            where_parts = [
+                "status IN ('READY', 'HIGH_USAGE')",
+                "(usage_percent IS NULL OR usage_percent < ?)",
+                "access_token IS NOT NULL",
+                "length(access_token) > 20",
+            ]
+            params: List[Any] = [QUOTA_EXHAUSTION_THRESHOLD]
+            if "cooldown_until" in cols:
+                where_parts.append("(cooldown_until IS NULL OR cooldown_until <= ?)")
+                params.append(now_ts)
 
-            if row:
-                res = dict(row)
-                res["query_time_ns"] = t1 - t0
-                res["query_time_ms"] = (t1 - t0) / 1_000_000.0
-                return res
+            sql = f"""
+                SELECT {', '.join(select_cols)}
+                FROM accounts
+                WHERE {' AND '.join(where_parts)}
+                ORDER BY
+                    CASE WHEN COALESCE(usage_percent, 0.0) < ? THEN 0 ELSE 1 END ASC,
+                    COALESCE(usage_percent, 0.0) ASC,
+                    id ASC
+            """
+            params.append(QUOTA_WARNING_THRESHOLD)
+            cur.execute(sql, tuple(params))
+
+            for row in cur.fetchall():
+                item = self._hydrate_row(row)
+                if not item:
+                    continue
+                if item["access_token"] in excludes or item["access_token"] in self._rate_limited_tokens:
+                    continue
+                t1 = time.perf_counter_ns()
+                item["query_time_ns"] = t1 - t0
+                item["query_time_ms"] = (t1 - t0) / 1_000_000.0
+                return item
         except Exception as e:
             print(f"[-] Direct DB lookup error: {e}")
         finally:
@@ -170,7 +201,7 @@ class TokenPoolManager:
         return None
 
     def get_token_from_cache(self, exclude_tokens: Optional[Union[str, Set[str], List[str]]] = None) -> Optional[Dict[str, Any]]:
-        """In-memory pool query with round-robin fair distribution and multi-token exclusion (< 0.05ms)."""
+        """In-memory pool query with fair round-robin and Tier 1 priority (< 0.05ms)."""
         excludes = self._normalize_excludes(exclude_tokens)
         t0 = time.perf_counter_ns()
         with self.lock:
@@ -181,23 +212,39 @@ class TokenPoolManager:
             if n == 0:
                 return None
 
-            # Fair round-robin search starting from self._current_index
+            fallback_hit = None
+            fallback_idx = 0
+
+            # Single-pass round-robin: immediately pick Tier 1 (<50%), retain first Tier 2 as fallback
             for i in range(n):
                 idx = (self._current_index + i) % n
                 acc = self._memory_cache[idx]
                 token = acc["access_token"]
+                usage = acc.get("usage_percent")
                 if (
                     acc.get("status") in ("READY", "HIGH_USAGE")
-                    and (acc.get("usage_percent") is None or acc.get("usage_percent", 0.0) < QUOTA_EXHAUSTION_THRESHOLD)
-                    and token not in excludes 
+                    and (usage is None or usage < QUOTA_EXHAUSTION_THRESHOLD)
+                    and token not in excludes
                     and token not in self._rate_limited_tokens
                 ):
-                    self._current_index = (idx + 1) % n
-                    t1 = time.perf_counter_ns()
-                    res = acc.copy()
-                    res["query_time_ns"] = t1 - t0
-                    res["query_time_ms"] = (t1 - t0) / 1_000_000.0
-                    return res
+                    if usage is None or usage < QUOTA_WARNING_THRESHOLD:
+                        self._current_index = (idx + 1) % n
+                        t1 = time.perf_counter_ns()
+                        res = acc.copy()
+                        res["query_time_ns"] = t1 - t0
+                        res["query_time_ms"] = (t1 - t0) / 1_000_000.0
+                        return res
+                    elif fallback_hit is None:
+                        fallback_hit = acc
+                        fallback_idx = idx
+
+            if fallback_hit is not None:
+                self._current_index = (fallback_idx + 1) % n
+                t1 = time.perf_counter_ns()
+                res = fallback_hit.copy()
+                res["query_time_ns"] = t1 - t0
+                res["query_time_ms"] = (t1 - t0) / 1_000_000.0
+                return res
 
         return None
 
@@ -222,23 +269,40 @@ class TokenPoolManager:
     def mark_rate_limited(self, token: str, reason: str = "Chat Lockout / Quota Exhausted", async_db: bool = True):
         """
         Marks account as EXHAUSTED instantly in RAM (O(1)),
-        then updates SQLite cursor_accounts.db asynchronously without blocking the event loop.
+        then updates SQLite cursor_accounts.db by account ID / token_hash / access_token
+        along with dynamic cooldown duration.
         """
         if not token:
             return
 
+        matched_id: Optional[int] = None
+        matched_email: Optional[str] = None
         with self.lock:
             self._rate_limited_tokens.add(token)
-            if token in self._token_map:
-                self._token_map[token]["status"] = "EXHAUSTED"
-                self._token_map[token]["usage_percent"] = 100.0
-                self._token_map[token]["total_spend"] = max(float(self._token_map[token].get("total_spend") or 0.0), 100.0)
-            for acc in self._memory_cache:
-                if acc["access_token"] == token:
-                    acc["status"] = "EXHAUSTED"
-                    acc["usage_percent"] = 100.0
-                    acc["total_spend"] = max(float(acc.get("total_spend") or 0.0), 100.0)
+            acc = self._token_map.get(token)
+            if acc:
+                matched_id = acc.get("id")
+                matched_email = acc.get("email")
+                acc["status"] = "EXHAUSTED"
+                acc["usage_percent"] = 100.0
+                acc["total_spend"] = max(float(acc.get("total_spend") or 0.0), 100.0)
+            for item in self._memory_cache:
+                if item["access_token"] == token:
+                    matched_id = matched_id or item.get("id")
+                    matched_email = matched_email or item.get("email")
+                    item["status"] = "EXHAUSTED"
+                    item["usage_percent"] = 100.0
+                    item["total_spend"] = max(float(item.get("total_spend") or 0.0), 100.0)
                     break
+
+        tok_hash = compute_token_hash(token)
+        try:
+            from ai_optimizer import DynamicCooldownManager
+            cd_seconds = DynamicCooldownManager.calculate_cooldown(reason or "")
+        except Exception:
+            cd_seconds = 7 * 86400
+        now_ts = int(time.time())
+        cd_until = now_ts + cd_seconds
 
         def _persist_to_db():
             con = None
@@ -249,25 +313,37 @@ class TokenPoolManager:
                     cur.execute("PRAGMA journal_mode=WAL;")
                 except Exception:
                     pass
-                try:
-                    cur.execute("""
-                        UPDATE accounts
-                        SET status = 'EXHAUSTED', display_message = ?, usage_percent = 100.0, total_spend = MAX(COALESCE(total_spend, 0.0), 100.0), last_checked = ?
-                        WHERE access_token = ?
-                    """, (reason, int(time.time()), token))
-                except sqlite3.OperationalError:
-                    try:
-                        cur.execute("""
-                            UPDATE accounts
-                            SET status = 'EXHAUSTED', usage_percent = 100.0, total_spend = 100.0
-                            WHERE access_token = ?
-                        """, (token,))
-                    except sqlite3.OperationalError:
-                        cur.execute("""
-                            UPDATE accounts
-                            SET status = 'EXHAUSTED', usage_percent = 100.0
-                            WHERE access_token = ?
-                        """, (token,))
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+
+                set_parts = ["status = 'EXHAUSTED'", "usage_percent = 100.0"]
+                set_params: List[Any] = []
+                if "total_spend" in cols:
+                    set_parts.append("total_spend = MAX(COALESCE(total_spend, 0.0), 100.0)")
+                if "display_message" in cols:
+                    set_parts.append("display_message = ?")
+                    set_params.append(reason)
+                if "last_checked" in cols:
+                    set_parts.append("last_checked = ?")
+                    set_params.append(now_ts)
+                if "cooldown_until" in cols:
+                    set_parts.append("cooldown_until = ?")
+                    set_params.append(cd_until)
+
+                if matched_id is not None:
+                    where_sql = "id = ?"
+                    where_params: List[Any] = [matched_id]
+                elif "token_hash" in cols and tok_hash:
+                    where_sql = "token_hash = ? OR access_token = ?"
+                    where_params = [tok_hash, token]
+                else:
+                    where_sql = "access_token = ?"
+                    where_params = [token]
+
+                cur.execute(
+                    f"UPDATE accounts SET {', '.join(set_parts)} WHERE {where_sql}",
+                    tuple(set_params + where_params),
+                )
                 con.commit()
             except Exception as e:
                 print(f"[-] Error updating EXHAUSTED status in DB: {e}")
@@ -278,9 +354,19 @@ class TokenPoolManager:
                     except Exception:
                         pass
 
+            if self.on_token_exhausted:
+                try:
+                    self.on_token_exhausted({
+                        "account_id": matched_id,
+                        "email": matched_email,
+                        "reason": reason,
+                        "cooldown_until": cd_until,
+                    })
+                except Exception:
+                    pass
+
         if async_db:
-            t = threading.Thread(target=_persist_to_db, daemon=True)
-            t.start()
+            threading.Thread(target=_persist_to_db, daemon=True).start()
         else:
             _persist_to_db()
 
@@ -295,8 +381,8 @@ class TokenPoolManager:
     def get_stats(self) -> Dict[str, Any]:
         with self.lock:
             ready_count = sum(
-                1 for a in self._memory_cache 
-                if a.get("status") in ("READY", "HIGH_USAGE") 
+                1 for a in self._memory_cache
+                if a.get("status") in ("READY", "HIGH_USAGE")
                 and (a.get("usage_percent") is None or a.get("usage_percent", 0.0) < QUOTA_EXHAUSTION_THRESHOLD)
                 and a["access_token"] not in self._rate_limited_tokens
             )
@@ -304,8 +390,9 @@ class TokenPoolManager:
                 "cached_accounts": len(self._memory_cache),
                 "ready_count": ready_count,
                 "rate_limited_count": len(self._rate_limited_tokens),
-                "threshold": QUOTA_EXHAUSTION_THRESHOLD
+                "threshold": QUOTA_EXHAUSTION_THRESHOLD,
             }
+
 
 if __name__ == "__main__":
     pool = TokenPoolManager()

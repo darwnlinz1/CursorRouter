@@ -93,9 +93,9 @@ class RotatingCursorProxy:
         self.max_swap_retries = 5
         self.recompute_checksum = True
 
-        # Metrics storage
+        # Metrics storage (thread-safe across aiohttp loop & Flask dashboard threads)
         self.metrics_log: List[Dict[str, Any]] = []
-        self._metrics_lock = asyncio.Lock()
+        self._metrics_lock = threading.Lock()
 
         # aiohttp web application factory
         self.app = self._build_app()
@@ -162,7 +162,13 @@ class RotatingCursorProxy:
                 if not self.state_vscdb_path:
                     try:
                         from cursor_settings import CursorSettingsManager
-                        CursorSettingsManager().spoof_storage_ids()
+                        csm = CursorSettingsManager()
+                        mode = csm.get_auto_switch_config().get("antidetect_mode", "account_locked")
+                        csm.apply_antidetect_mode(
+                            mode=mode,
+                            account_id=new_acc.get("id"),
+                            fingerprint=new_acc.get("fingerprint"),
+                        )
                     except Exception:
                         pass
                 return True
@@ -206,11 +212,11 @@ class RotatingCursorProxy:
             })
 
         if rel_path == "proxy/metrics":
-            async with self._metrics_lock:
-                return web.json_response(self.metrics_log[-100:])
+            with self._metrics_lock:
+                return web.json_response(list(self.metrics_log[-100:]))
 
         if rel_path == "proxy/reset_metrics":
-            async with self._metrics_lock:
+            with self._metrics_lock:
                 self.metrics_log.clear()
             self.pool.reset_rate_limits()
             return web.json_response({"status": "metrics_and_limits_reset"})
@@ -405,7 +411,14 @@ class RotatingCursorProxy:
                     for k in list(headers_attempt.keys()):
                         if k.lower() == "x-cursor-checksum":
                             del headers_attempt[k]
-                    headers_attempt["x-cursor-checksum"] = generate_cursor_checksum()
+                    fp = new_acc.get("fingerprint") if isinstance(new_acc, dict) else None
+                    if isinstance(fp, dict) and fp.get("machineId"):
+                        headers_attempt["x-cursor-checksum"] = generate_cursor_checksum(
+                            machine_id=fp.get("machineId"),
+                            mac_machine_id=fp.get("macMachineId"),
+                        )
+                    else:
+                        headers_attempt["x-cursor-checksum"] = generate_cursor_checksum()
 
                 t_swap_end = time.perf_counter_ns()
                 metric["swap_latency_ms"] += (t_swap_end - t_swap_start) / 1_000_000.0
@@ -532,7 +545,7 @@ class RotatingCursorProxy:
         metric["bytes_streamed"] = bytes_streamed
         metric["chunks_received"] = chunks_received
 
-        async with self._metrics_lock:
+        with self._metrics_lock:
             self.metrics_log.append(metric)
             if len(self.metrics_log) > 1000:
                 self.metrics_log = self.metrics_log[-500:]
@@ -629,7 +642,7 @@ class RotatingCursorProxy:
             metric["total_ms"] = metric["ttft_ms"]
             metric["final_status"] = backend_resp.status
 
-            async with self._metrics_lock:
+            with self._metrics_lock:
                 self.metrics_log.append(metric)
                 if len(self.metrics_log) > 1000:
                     self.metrics_log = self.metrics_log[-500:]

@@ -371,16 +371,35 @@ class TestServerDebugAndTokenEndpoints(unittest.TestCase):
 
     def test_api_account_token_decrypts_successfully(self):
         """GET /api/accounts/<id>/token returns decrypted token for legitimate copy."""
-        accounts = server.pool.get_all_accounts()
-        if accounts:
-            first_id = accounts[0]["id"]
-            res = self.app.get(f"/api/accounts/{first_id}/token")
+        import sqlite3
+        from account_pool import DB_FILE
+        from token_cipher import encrypt_token
+
+        raw_tok = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0X3Rva2VuX2RlY3J5cHQifQ.sig12345"
+        con = sqlite3.connect(DB_FILE, timeout=30.0)
+        cur = con.cursor()
+        cur.execute("DELETE FROM accounts WHERE email = 'token_decrypt_test@example.com'")
+        cur.execute("""
+            INSERT INTO accounts (file_name, email, access_token, status)
+            VALUES ('token_decrypt_test.txt', 'token_decrypt_test@example.com', ?, 'READY')
+        """, (encrypt_token(raw_tok),))
+        acc_id = cur.lastrowid
+        con.commit()
+        con.close()
+
+        try:
+            res = self.app.get(f"/api/accounts/{acc_id}/token")
             self.assertEqual(res.status_code, 200)
             data = json.loads(res.data)
             self.assertTrue(data.get("success"))
-            self.assertEqual(data.get("account_id"), first_id)
-            if data.get("token"):
-                self.assertFalse(data["token"].startswith("enc:v1:"))
+            self.assertEqual(data.get("account_id"), acc_id)
+            self.assertEqual(data.get("token"), raw_tok)
+            self.assertFalse(data["token"].startswith("enc:v1:"))
+        finally:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            con.execute("DELETE FROM accounts WHERE id = ?", (acc_id,))
+            con.commit()
+            con.close()
 
     def test_api_account_token_not_found(self):
         """GET /api/accounts/999999/token returns 404."""

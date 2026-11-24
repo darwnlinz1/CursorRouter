@@ -1,8 +1,8 @@
-# 🚀 CursorRouter
+# 🚀 CursorRouter v3.0
 
 <p align="center">
   <a href="https://github.com/darwnlinz1/CursorRouter/releases"><img src="https://img.shields.io/github/v/release/darwnlinz1/CursorRouter?style=flat-square&color=3b82f6" alt="Latest Release"></a>
-  <a href="tests/"><img src="https://img.shields.io/badge/tests-309%20passed-10b981?style=flat-square" alt="Tests"></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/architecture-v3.0%20HTTP%2F2%20%2B%20WAL-10b981?style=flat-square" alt="Architecture"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3b82f6?style=flat-square" alt="Python 3.10+"></a>
   <a href="https://cursor.com/"><img src="https://img.shields.io/badge/Cursor%20IDE-v0.45%2B-000000?style=flat-square" alt="Cursor IDE"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License MIT"></a>
@@ -10,136 +10,83 @@
 </p>
 
 <p align="center">
-  <b>Production-grade local account pool manager, two-tier quota router, anti-detect profile isolator, and desktop cockpit built exclusively for Cursor IDE.</b>
+  <b>High-speed local account pool manager, HTTP/2 multiplexed quota sync engine, zero-downtime Connect-RPC rotating proxy, anti-detect hardware isolator, and offline-first dark cockpit built for Cursor IDE.</b>
 </p>
 
 ---
 
-## 📥 Downloads & Releases
+## ⚡ v3.0 Empirical Performance Benchmarks
 
-Pre-compiled standalone Windows executables are available on the GitHub Releases page:
+Benchmarked end-to-end against live `api2.cursor.sh` endpoints, PBKDF2 token cryptography, and SQLite persistence (reproducible via `python scripts/benchmark_architectures.py`):
+
+| Subsystem | Legacy (v2.x) | **CursorRouter v3.0** | Speedup |
+| :--- | :---: | :---: | :---: |
+| **8-Account Live Quota Sync (Warm)** | `6,937.7 ms` (unpooled `requests`, 3 RPCs, 5w) | **`372.8 ms`** (persistent `httpx` HTTP/2, coalesced stream) | **~18.6× faster** |
+| **8-Account Cold Full Sync + DB Commit** | `6,937.7 ms` | **`1,860.5 ms`** (Cold H2 + 2-RPC + Batched WAL) | **~3.7× faster** |
+| **Token Decryption (100 acc × 3 fields)** | `1,334.14 ms` (uncached PBKDF2) | **`0.0111 ms`** (bounded LRU decrypt cache) | **120,000× faster** |
+| **SQLite Batch Persistence (50 accounts)** | `284.78 ms` (3 commits/row) | **`2.49 ms`** (single batched WAL transaction) | **114× faster** |
+| **Proxy RAM Token Lookup** | SQLite round-trip (`~3–8 ms`) | **`0.0072 ms` (`7.2 µs`)** (in-memory decrypted pool) | **Zero-RTT swap** |
+| **UI Initial Paint & Offline Load** | 5,321-line HTML + Tailwind CDN + Google Fonts | **100% Local CSS/JS** + 1-RTT `/api/dashboard/snapshot` + SSE | **Instant / Offline** |
+
+---
+
+## 🌟 Key Features (v3.0 Overhaul)
+
+- ⚡ **Persistent Async HTTP/2 Sync Engine (`src/async_sync_engine.py`)**:
+  - Dedicated background asyncio runtime reusing coalesced HTTP/2 TLS connections (`httpx.AsyncClient(http2=True, max_connections=4)`).
+  - Extracts valid Session JWTs directly from `WorkosCursorSessionToken` (`~0.01 ms`), bypassing unnecessary CSRF-gated PKCE exchanges, and transparently handles lazy double-submit CSRF if PKCE fallback is required.
+  - Never discards working accounts based on stale local JWT `exp` claims — verifies live via multiplexed HTTP/2.
+- 📋 **Instant Cookie Ingestion Workbench (Quick Paste + Dropzone)**:
+  - **Paste directly from clipboard** (`POST /api/cookies/paste`) or drag & drop files — auto-detects **Netscape TSV** (with `#` comments), **JSON Cookie arrays** (EditThisCookie / Cookie-Editor), **HTTP `Cookie:` headers**, **`email|cookie`** batch lines, and **raw tokens**.
+- 🛡️ **Anti-Detect Hardware Isolation (`account_locked`, `always_random`, `native_standard`)**:
+  - Binds persistent randomized hardware identifiers (`machineId`, `macMachineId`, `devDeviceId`, `sqmId`) per account in SQLite, restoring the exact identity into `storage.json` on switch (and strictly honoring `native_standard` without modifying host IDs).
+- 🔐 **End-to-End Token Security & Blind Indexing**:
+  - Machine-bound PBKDF2-HMAC encryption (`enc:v1:`) with bounded LRU decrypt cache (`src/token_cipher.py`), SHA-256 `token_hash` blind indexing for instant DB queries, and strict secret redaction on `/api/accounts` and `/api/status` (raw JWTs are never broadcast to list/status endpoints).
+- 🔀 **Two-Tier Priority Router + Zero-Downtime Proxy (`:8999`)**:
+  - **Tier 1 (`< 50%`)** dispatched first, **Tier 2 (`50–99%`)** as automatic fallback, and cooldown quarantine for `≥ 100%` / rate-limited accounts.
+  - Local Connect-RPC Rotating Proxy auto-swaps on `429`/`401` in sub-millisecond RAM lookup (`7.2 µs`).
+- 📝 **Comment-Safe JSONC Settings Sync (`src/jsonc_utils.py`)**:
+  - Bi-directional 8-category Cursor IDE settings sync that preserves comments & URLs (`http://127.0.0.1:8999`) in `%APPDATA%\Cursor\User\settings.json`. Profile overrides on switch are strictly opt-in (`apply_profile_on_switch: false` by default).
+- 🖥️ **Offline-First Dark Cockpit + SSE Live Stream**:
+  - Zero external CDN dependencies (works 100% offline inside WebView2 & browser), modular CSS/JS (`static/css/`, `static/js/`), unified `/api/dashboard/snapshot` + Server-Sent Events (`/api/events`), live proxy telemetry, and keyboard shortcuts (`Esc`, `Ctrl+F`, `Ctrl+Shift+D`, `Ctrl+Alt+S`, `Ctrl+Alt+U`).
+
+---
+
+## 🏗️ v3.0 System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Ingest ["1. Multi-Format Cookie Ingestion"]
+        PASTE["Quick Paste / Drag & Drop / Cookies/"] --> PARSE["Auto Parser (Netscape / JSON / Header / Raw)"]
+        PARSE -->|Direct JWT Extract ~0.01ms| H2["Persistent asyncio + httpx HTTP/2 Engine"]
+        PARSE -.->|Fallback if no JWT| PKCE["Lazy CSRF + PKCE Exchange"]
+    end
+
+    subgraph Storage ["2. Encrypted Storage & Sub-ms Cache"]
+        H2 -->|Single Batched WAL Tx 2.5ms| DB[("cursor_accounts.db (SQLite WAL)")]
+        DB -->|enc:v1: + LRU Cache 0.01ms| TPOOL["In-Memory TokenPoolManager (7.2 µs)"]
+        DB -->|Blind token_hash Index| API["Flask API + SSE (/api/events)"]
+    end
+
+    subgraph Routing ["3. Two-Tier Router & Anti-Detect"]
+        API --> UI["Offline Dark Cockpit (Web / WebView2)"]
+        TPOOL --> PROXY["Rotating Connect-RPC Proxy (:8999)"]
+        DB --> AD["Anti-Detect Vault (storage.json)"]
+        DB --> VSC["Zero-Context-Loss Auth Swap (state.vscdb)"]
+        DB --> JSONC["Comment-Safe JSONC Sync (settings.json)"]
+    end
+```
+
+---
+
+## 📥 Downloads & Releases
 
 | Platform | Architecture | Package Type | Download Link |
 | :--- | :--- | :--- | :--- |
 | **Windows 10 / 11** | `x64` | Standalone `.exe` (WebView2) | [Download Latest Release](https://github.com/darwnlinz1/CursorRouter/releases/latest) |
 | **Windows 10 / 11** | `x64` | Portable Source Archive | [Source Code (zip)](https://github.com/darwnlinz1/CursorRouter/archive/refs/heads/main.zip) |
 
-*For local building and custom packaging, see the [Desktop App Packaging Guide](desktop_app/README.md).*
-
----
-
-## 🌟 Key Features
-
-- 🛡️ **Anti-Detect Hardware Isolation**: Binds persistent, randomized hardware fingerprints (`machineId`, `macMachineId`, `devDeviceId`, `sqmId`) to each individual account in SQLite, preventing Cursor telemetry from linking multiple accounts to a single machine identity.
-- ⚡ **Two-Tier Priority Routing Engine**:
-  - **Tier 1 (Priority Pool - Quota < 50%)**: Dispatched first for blazing fast AI completions.
-  - **Tier 2 (Fallback Pool - Quota 50% - 99%)**: Utilized when Tier 1 is exhausted, maximizing Cursor's 5-hour rolling slow queue.
-  - **7-Day Cooldown Quarantine**: Accounts reaching 100% or encountering chat lock are automatically blacklisted for 7 days, then released once quota resets.
-- 📂 **Seamless Cookie Dropzone**: Auto-generates `Cookies/` directory. Drop `.txt` cookie files and convert them via **12 parallel worker threads** into 60-day access tokens.
-- 🧠 **Zero Context Loss**: Modifies only `globalStorage/state.vscdb` auth credentials without touching `workspaceStorage`. Chats, composer history, and file context remain 100% intact across switches.
-- ⌨️ **Keyboard Safety & Keystroke Isolation**: Eliminates fake Alt key hacks with guaranteed Win32 modifier unstick (`release_all_modifier_keys` in `finally:`). Prompt dispatch strictly targets verified `Cursor.exe` HWND with inactive typing checks (>2.5s).
-- 🎛️ **Full 8-Category Cursor Settings Taxonomy**: 100% bi-directional sync with `%APPDATA%\Cursor\User\settings.json` across General, Appearance, Agent, Git & PRs, Worktrees, Browser & Network, Tab, and Code Intelligence.
-- 🖥️ **Minimalist Web & Native Desktop Cockpit**: High-density compact account cards with email masking (`👁️`), real-time quota gauges, live sync clocks, and standalone Microsoft Edge WebView2 packaging in `desktop_app/`.
-
----
-
-## 🏗️ System Architecture
-
-```mermaid
-flowchart TD
-    subgraph Ingestion ["1. Account Ingestion & Cryptography"]
-        CK["Cookies/*.txt (Dropzone)"] -->|12 Parallel Threads| PKCE["PKCE Auth Exchange (SHA-256)"]
-        PKCE -->|HMAC Machine Key| DB[("cursor_accounts.db (SQLite WAL)")]
-    end
-
-    subgraph Routing ["2. Intelligent Two-Tier Routing Engine"]
-        DB --> POOL["Two-Tier Account Pool"]
-        POOL -->|Quota < 50%| T1["Tier 1: Fast Request Pool"]
-        POOL -->|50% <= Quota < 100%| T2["Tier 2: Fallback Slow Pool"]
-        POOL -->|Quota >= 100% / Lock| CD["7-Day Quarantine Cooldown"]
-    end
-
-    subgraph AntiDetect ["3. Anti-Detect Hardware Isolation Engine"]
-        AD["Anti-Detect Profile Manager"] -->|UUID / SHA-256| FP["Per-Account Fingerprint"]
-        FP -->|Inject on Switch| SJ["%APPDATA%/Cursor/User/globalStorage/storage.json"]
-        SJ -.->|Spoofs| HIDS["machineId, macMachineId, devDeviceId, sqmId"]
-    end
-
-    subgraph Execution ["4. Execution & IDE Orchestration"]
-        T1 & T2 --> ROUTER["Account Switch Coordinator"]
-        ROUTER --> AD
-        ROUTER -->|Inject Auth Tokens| DBVSC["globalStorage/state.vscdb"]
-        ROUTER -->|CIM / WMI Process Control| CEXE["Cursor.exe IDE"]
-        CEXE -->|Transparent Interception| PROXY["Connect-RPC Streaming Proxy (:8999)"]
-    end
-```
-
----
-
-## 🛡️ Anti-Detect Hardware Fingerprint Isolation
-
-Standard browser and desktop extensions share the host operating system's hardware identifiers, allowing telemetry providers to link multiple free/trial accounts back to the same machine. **CursorRouter** provides deep hardware isolation inspired by anti-detect browsers (such as Dolphin{anty} and AdsPower):
-
-```json
-{
-  "telemetry.machineId": "auth0|user_7a4f9b8c2e1d034a5f6e8b7c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e",
-  "telemetry.macMachineId": "b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2",
-  "telemetry.devDeviceId": "8f3b2a1c-4e5d-6f7a-8b9c-0d1e2f3a4b5c",
-  "telemetry.sqmId": "{3B7F1C9A-4D5E-6A7B-8C9D-0E1F2A3B4C5D}"
-}
-```
-
-### Supported Modes:
-1. **Account-Locked Profile (Recommended)**: Each account has a unique, deterministic fingerprint permanently saved in SQLite. Whenever you switch to that account, its exact hardware identity is restored in `storage.json`.
-2. **Stealth Randomization**: Generates fresh, random hardware IDs on every single switch.
-3. **Native Host Standard**: Preserves your existing machine IDs without modification.
-
----
-
-## 📦 Project Structure
-
-```
-CursorRouter/
-├── main.py                      # Unified Python CLI & server entry point
-├── native_app.py                # Standalone native desktop application launcher
-├── build_standalone_exe.py      # Standalone Windows executable builder
-├── auto_switch_config.json      # Configuration: auto-switch, reset mode, anti-detect settings
-├── cursor_config_profiles.json  # Exportable/importable 8-category Cursor setting profiles
-├── pytest.ini                   # Pytest automation configuration
-├── LICENSE                      # MIT Open Source License
-├── .gitignore                   # Security exclusion rules (zero leaked keys/databases)
-│
-├── desktop_app/                 # Isolated Native Desktop Application Package
-│   ├── desktop_main.py          # Native WebView2 controller & lifecycle manager
-│   ├── build.py                 # Standalone PyInstaller compiler & SHA-256 manifest generator
-│   ├── BUILD_APP.bat            # 1-Click Windows binary builder
-│   ├── START_DESKTOP.bat        # 1-Click desktop application launcher
-│   ├── RELEASE_GUIDE.md         # GitHub release instructions
-│   ├── requirements.txt         # Desktop-specific dependencies (pywebview, pyinstaller)
-│   └── README.md                # Desktop package documentation
-│
-├── src/                         # Core Architecture
-│   ├── account_pool.py          # SQLite WAL account pool, two-tier priority, 7-day quarantine
-│   ├── cursor_settings.py       # 8-category settings taxonomy & anti-detect fingerprinting
-│   ├── cursor_reloader.py       # Win32 window automation, process reboot, modifier unstick
-│   ├── cursor_storage.py        # Token injection into globalStorage/state.vscdb
-│   ├── server.py                # REST API backend & static cockpit routes
-│   ├── updater.py               # Detached Windows auto-updater with SHA-256 verification
-│   ├── ai_optimizer.py          # EMA token velocity predictor & tail-anchor prompt generator
-│   ├── chat_lock_detector.py    # 4-layer chat lockout & Connect-RPC quota error detector
-│   ├── smart_task_filter.py     # Continuation filter (interrupted task vs finished task)
-│   ├── token_pool.py            # Sub-millisecond in-memory token cache for proxy routing
-│   ├── rotating_proxy.py        # Transparent streaming Connect-RPC proxy (:8999)
-│   ├── windows_notifier.py      # Win32 Toast Notifications with XML escaping
-│   ├── pkce_auth.py             # PKCE code_challenge / verifier authentication client
-│   └── token_cipher.py          # HMAC-SHA256 token encryption for SQLite security
-│
-├── templates/                   # Frontend UI
-│   └── index.html               # Minimalist HUD Cockpit (Account Table, Settings Modal)
-├── Cookies/                     # User cookies dropzone directory (.gitignored)
-│   └── .gitkeep                 # Preserved folder placeholder
-└── tests/                       # Automated Pytest Suite (309 tests, 100% pass rate)
-```
+*For building portable/frozen executables with safe writable data paths (`src/app_paths.py`), see [Desktop App Packaging Guide](desktop_app/README.md).*
 
 ---
 
@@ -151,74 +98,101 @@ CursorRouter/
 - **Cursor IDE** installed at `%LOCALAPPDATA%\Programs\cursor\Cursor.exe`
 
 ### 1. Installation
-Clone the repository and install core dependencies:
 ```bash
 git clone https://github.com/darwnlinz1/CursorRouter.git
 cd CursorRouter
 pip install -r requirements.txt
 ```
 
-### 2. Launching Cockpit
-
-- **Web Dashboard Mode**:
+### 2. Launch CursorRouter
+- **Web Dashboard Mode** (`http://127.0.0.1:7860`):
   ```bash
   python main.py
   ```
-  Cockpit runs at `http://127.0.0.1:7860` (or `http://localhost:7860`).
-
-- **Native Desktop App Mode**:
+- **Native Desktop App Mode (WebView2)**:
   ```bash
   python main.py --native
   ```
-  Or run `python desktop_app/desktop_main.py`. Opens as a standalone window using Microsoft Edge WebView2 without launching external web browsers.
+
+### 3. Run Architecture Speed Benchmark
+```bash
+# Run full benchmark (Network HTTP/2 + Crypto LRU + SQLite WAL)
+python scripts/benchmark_architectures.py --cookies-dir Cookies
+
+# Run local-only benchmark (Crypto + SQLite, no cookies needed)
+python scripts/benchmark_architectures.py --skip-network
+```
 
 ---
 
-## 📋 Cookie Ingestion Workflow
+## 📦 Project Structure
 
-1. Click **"Open Cookies Folder"** on the dashboard. Windows Explorer will open the local `Cookies/` directory.
-2. Drop your exported Netscape or raw cookie `.txt` files into `Cookies/`.
-3. Click **"Batch Scan & Convert"**. The engine launches 12 parallel threads to exchange cookies for 60-day access tokens, generates unique anti-detect hardware profiles, and inserts them into your active pool.
+```text
+CursorRouter/
+├── main.py                         # Unified CLI & localhost server entrypoint
+├── native_app.py                   # Native desktop launcher
+├── build_standalone_exe.py         # Standalone Windows executable builder
+├── scripts/
+│   └── benchmark_architectures.py  # Reproducible 3-suite speed benchmark harness
+├── src/
+│   ├── app_paths.py                # Frozen/portable/source-aware writable data paths
+│   ├── async_sync_engine.py        # Persistent asyncio + httpx HTTP/2 sync engine
+│   ├── jsonc_utils.py              # String-aware JSONC comment stripper & atomic writer
+│   ├── account_pool.py             # SQLite WAL pool, batched writes, blind token_hash index
+│   ├── token_cipher.py             # PBKDF2-HMAC cipher + bounded LRU decrypt cache
+│   ├── token_pool.py               # Sub-millisecond decrypted RAM pool for proxy
+│   ├── rotating_proxy.py           # Connect-RPC auto-rotating proxy (:8999)
+│   ├── pkce_auth.py                # Multi-format cookie parser, direct JWT + lazy CSRF PKCE
+│   ├── cursor_settings.py          # 8-category JSONC settings & Anti-Detect fingerprint manager
+│   ├── cursor_storage.py           # Zero-context-loss state.vscdb auth injector
+│   ├── cursor_reloader.py          # Win32 window control, process reboot & modifier unstick
+│   ├── server.py                   # Flask API, /api/dashboard/snapshot, /api/events SSE
+│   ├── updater.py                  # GitHub Releases auto-updater (darwnlinz1/CursorRouter)
+│   ├── ai_optimizer.py             # Quota burn-rate EMA predictor
+│   ├── chat_lock_detector.py       # Chat lockout & Connect-RPC quota error detector
+│   ├── smart_task_filter.py        # Continuation filter
+│   └── windows_notifier.py         # Win32 Toast Notifications
+├── static/
+│   ├── css/                        # tokens.css, app.css (100% offline, zero CDN)
+│   └── js/                         # utils.js, cockpit.js, modals.js
+├── templates/
+│   └── index.html                  # Offline dark cockpit shell
+├── desktop_app/                    # PyWebView2 standalone desktop packaging
+└── tests/                          # Automated Pytest suite
+```
 
 ---
 
-## 🎛️ REST API Reference
+## 🎛️ Key REST & SSE Endpoints
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/api/status` | `GET` | Current pool status, active account, process state, and live metrics. |
-| `/api/accounts` | `GET` | Retrieve accounts partitioned into Tier 1, Tier 2, and Cooldown. |
-| `/api/switch/<id>` | `POST` | Switch active account, inject tokens, apply fingerprint, and relaunch. |
-| `/api/rotate` | `POST` | Automatically route to the next best available Tier 1 or Tier 2 account. |
-| `/api/antidetect/config` | `GET / POST` | Read or update global anti-detect mode (`account_locked`, `stealth_randomize`). |
-| `/api/antidetect/account/<id>` | `GET` | Inspect persistent hardware fingerprint for a specific account. |
-| `/api/antidetect/regenerate/<id>`| `POST` | Regenerate a new persistent fingerprint for an account. |
-| `/api/cookies/open-folder` | `POST` | Open Windows Explorer to the local `Cookies/` folder. |
-| `/api/cookies/scan-all` | `POST` | Execute 12-thread parallel cookie-to-token ingestion. |
-| `/api/cursor/settings` | `GET / POST` | Read or update 8-category Cursor IDE settings. |
-| `/api/unstick-keys` | `POST` | Emergency trigger to release all physical modifier keys. |
+| `/api/dashboard/snapshot` | `GET` | Unified 1-RTT state snapshot (`?include_accounts=1&since_version=N`). |
+| `/api/events` | `GET` | Real-time Server-Sent Events (SSE) push stream. |
+| `/api/cookies/paste` | `POST` | Instant clipboard cookie ingestion (Netscape, JSON, Header, Batch, Raw). |
+| `/api/cookies/convert` | `POST` | Scan `Cookies/` and run parallel HTTP/2 quota sync. |
+| `/api/accounts` | `GET` | Redacted account list sorted Active → Tier 1 → Tier 2 → Cooldown. |
+| `/api/switch/<id>` | `POST` | Switch active account, inject tokens, apply fingerprint & reset Cursor. |
+| `/api/auto-switch` | `POST` | Route immediately to the lowest-usage eligible Tier 1 / Tier 2 account. |
+| `/api/proxy/status` & `/metrics` | `GET` | Live Rotating Proxy status, swap hops, and TTFT telemetry. |
+| `/api/cursor/settings` | `GET / POST` | Comment-safe JSONC sync across all 8 Cursor settings categories. |
+| `/api/unstick-keys` | `POST` | Emergency Win32 modifier key release (`Ctrl+Alt+U`). |
 
 ---
 
 ## 🧪 Testing & Verification
 
-The test suite contains over **300 automated unit and integration tests** verifying anti-detect spoofing, account switching, window focus safety, modifier key unsticking, and two-tier quota prioritization:
-
 ```bash
-# Run all tests
 pytest tests/ -q
-
-# Run anti-detect tests specifically
-pytest tests/test_antidetect_fingerprint.py -v
 ```
 
 ---
 
-## 🔒 Security & Privacy Notice
+## 🔒 Security & Privacy
 
-- **Zero Remote Telemetry**: CursorRouter runs 100% locally on your machine (`127.0.0.1`).
-- **Encrypted Storage**: Sensitive access tokens in SQLite are encrypted using machine-bound HMAC keys.
-- **Git Security**: Private cookies, SQLite databases, master keys, and cache directories are permanently excluded in `.gitignore`.
+- **Localhost-Only by Default**: Server binds strictly to `127.0.0.1:7860` (`--host` opt-in for LAN).
+- **Encrypted at Rest & Redacted in Transit**: Tokens in SQLite are encrypted (`enc:v1:`) with machine-bound keys; list and status APIs strip raw JWTs.
+- **Git Hygiene**: `Cookies/`, `*.db`, `.cursor_master.key`, and logs are permanently excluded via `.gitignore`.
 
 ---
 

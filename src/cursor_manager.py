@@ -87,7 +87,8 @@ def main():
 
     if args.serve:
         import server
-        server.app.run(host="127.0.0.1", port=7860, debug=False)
+        server.start_background_services()
+        server.app.run(host=os.getenv("CURSOR_HOST", "127.0.0.1"), port=int(os.getenv("PORT", "7860")), debug=False, threaded=True)
         return
 
     if args.test_cookie:

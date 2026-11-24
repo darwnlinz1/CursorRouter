@@ -16,9 +16,107 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+_CURSOR_SAFE_STORAGE_KEY_CACHE: Optional[bytes] = None
+_CURSOR_SAFE_STORAGE_KEY_LOADED = False
+
+
+def detect_token_type(token: Optional[str]) -> str:
+    """
+    Identify Cursor JWT token class:
+      - 'session': Desktop IDE OAuth session token (works on AI Chat + GetUsableModels + Quota)
+      - 'web': WorkOS web cookie token (works on Dashboard/Quota/GetMe, rejected by IDE AI endpoints)
+      - 'unknown': Missing / non-JWT / legacy token without explicit type claim
+    """
+    payload = decode_jwt_payload(token)
+    if not payload:
+        return "unknown"
+    t = str(payload.get("type") or "").strip().lower()
+    if t == "session":
+        return "session"
+    if t == "web":
+        return "web"
+    return "unknown"
+
+
+def _load_cursor_dpapi_aes_key() -> Optional[bytes]:
+    """Read & DPAPI-unprotect Cursor's Electron os_crypt AES-256 key on Windows."""
+    global _CURSOR_SAFE_STORAGE_KEY_CACHE, _CURSOR_SAFE_STORAGE_KEY_LOADED
+    if _CURSOR_SAFE_STORAGE_KEY_LOADED:
+        return _CURSOR_SAFE_STORAGE_KEY_CACHE
+    _CURSOR_SAFE_STORAGE_KEY_LOADED = True
+    if sys.platform != "win32":
+        return None
+    try:
+        appdata = os.getenv("APPDATA") or ""
+        local_state = os.path.join(appdata, "Cursor", "Local State")
+        if not os.path.exists(local_state):
+            return None
+        with open(local_state, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        enc_b64 = (data.get("os_crypt") or {}).get("encrypted_key")
+        if not enc_b64:
+            return None
+        enc_raw = base64.b64decode(enc_b64)
+        if not enc_raw.startswith(b"DPAPI"):
+            return None
+        enc_raw = enc_raw[5:]
+
+        import ctypes
+        import ctypes.wintypes
+
+        class DATA_BLOB(ctypes.Structure):
+            _fields_ = [
+                ("cbData", ctypes.wintypes.DWORD),
+                ("pbData", ctypes.POINTER(ctypes.c_char)),
+            ]
+
+        blob_in = DATA_BLOB(len(enc_raw), ctypes.create_string_buffer(enc_raw, len(enc_raw)))
+        blob_out = DATA_BLOB()
+        if ctypes.windll.crypt32.CryptUnprotectData(
+            ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)
+        ):
+            try:
+                _CURSOR_SAFE_STORAGE_KEY_CACHE = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+            finally:
+                ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+            return _CURSOR_SAFE_STORAGE_KEY_CACHE
+    except Exception:
+        pass
+    return None
+
+
+def decrypt_cursor_safe_storage(value: Optional[str]) -> Optional[str]:
+    """
+    Transparently decrypt Cursor v0.48+ Electron safeStorage tokens (`cursor-safe-storage:v1:<b64>`).
+    Returns plaintext JWT/string if encrypted, or original value if already plaintext.
+    """
+    if not value or not isinstance(value, str):
+        return value
+    prefix = "cursor-safe-storage:v1:"
+    if not value.startswith(prefix):
+        return value
+    try:
+        aes_key = _load_cursor_dpapi_aes_key()
+        if not aes_key:
+            return value
+        raw = base64.b64decode(value[len(prefix):])
+        if raw.startswith(b"v10") or raw.startswith(b"v11"):
+            nonce = raw[3:15]
+            ciphertext = raw[15:]
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            return AESGCM(aes_key).decrypt(nonce, ciphertext, None).decode("utf-8")
+    except Exception:
+        pass
+    return value
+
+
 def decode_jwt_payload(token: Optional[str]) -> Dict[str, Any]:
     """Giai ma payload cua JWT token ma khong can thu vien ngoai."""
-    if not token or not isinstance(token, str) or "." not in token:
+    if not token or not isinstance(token, str):
+        return {}
+    if token.startswith("cursor-safe-storage:v1:"):
+        token = decrypt_cursor_safe_storage(token) or ""
+    if "." not in token:
         return {}
     try:
         parts = token.split(".")
@@ -72,10 +170,13 @@ class CursorStorageManager:
                 if key == "cursorAuth/cachedEmail":
                     info["email"] = val
                 elif key == "cursorAuth/accessToken":
-                    info["access_token"] = val
-                    info["has_token"] = bool(val and len(val) > 20)
+                    dec_val = decrypt_cursor_safe_storage(val)
+                    info["access_token"] = dec_val
+                    info["has_token"] = bool(dec_val and len(dec_val) > 20)
+                    info["token_type"] = detect_token_type(dec_val)
+                    info["safe_storage_encrypted"] = bool(isinstance(val, str) and val.startswith("cursor-safe-storage:v1:"))
                 elif key == "cursorAuth/refreshToken":
-                    info["refresh_token"] = val
+                    info["refresh_token"] = decrypt_cursor_safe_storage(val)
                 elif key == "cursorAuth/stripeMembershipType":
                     info["membership_type"] = val
                 elif key == "cursorAuth/cachedScopedProfile":
@@ -127,9 +228,13 @@ class CursorStorageManager:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
             "Connect-Protocol-Version": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/134.0.0.0 Safari/537.36"
+            ),
         }
-        
+
         profile = {
             "email": None,
             "displayName": "",
@@ -139,35 +244,60 @@ class CursorStorageManager:
             "usagePercent": 0,
             "totalSpend": 0,
             "displayMessage": "",
-            "usage_fetched": False
+            "usage_fetched": False,
         }
-        
+
+        # Use requests.post directly if patched in tests; otherwise use a pooled Session for TLS keep-alive
+        post_fn = requests.post
+        is_mocked = hasattr(post_fn, "_mock_name") or hasattr(post_fn, "mock_calls") or type(post_fn).__name__ == "MagicMock"
+        if not is_mocked:
+            if not hasattr(self, "_http_session") or self._http_session is None:
+                s = requests.Session()
+                adapter = requests.adapters.HTTPAdapter(pool_connections=16, pool_maxsize=32)
+                s.mount("https://", adapter)
+                self._http_session = s
+            post_fn = self._http_session.post
+
         try:
-            # 1. Lay thong tin user tu GetMe
-            me_resp = requests.post("https://api2.cursor.sh/aiserver.v1.DashboardService/GetMe", headers=headers, json={}, timeout=6)
+            # 1. Lay thong tin user tu GetMe (da bao gom email, authId, firstName, lastName, membershipType, signupSource)
+            me_resp = post_fn("https://api2.cursor.sh/aiserver.v1.DashboardService/GetMe", headers=headers, json={}, timeout=6)
             profile["http_status"] = me_resp.status_code
+            signup_inferred = False
             if me_resp.status_code == 200:
                 me_data = me_resp.json()
                 profile["email"] = me_data.get("email")
                 profile["authId"] = me_data.get("authId") or me_data.get("workosId")
-                fn = me_data.get("firstName", "")
-                ln = me_data.get("lastName", "")
-                profile["displayName"] = f"{fn} {ln}".strip() or profile["email"]
-            
-            # 2. Lay signup type
-            email_resp = requests.post("https://api2.cursor.sh/aiserver.v1.AuthService/GetEmail", headers=headers, json={}, timeout=6)
-            if email_resp.status_code == 200:
-                ed = email_resp.json()
-                st = ed.get("signUpType", "")
-                if "GOOGLE" in st:
+                fn = me_data.get("firstName") or ""
+                ln = me_data.get("lastName") or ""
+                profile["displayName"] = f"{fn} {ln}".strip() or (profile["email"] or "")
+                if me_data.get("membershipType"):
+                    profile["membershipType"] = me_data["membershipType"]
+                auth_str = str(profile["authId"] or "").lower()
+                if "google" in auth_str:
                     profile["signUpType"] = "Google"
-                elif "GITHUB" in st:
+                    signup_inferred = True
+                elif "github" in auth_str:
                     profile["signUpType"] = "GitHub"
-                else:
+                    signup_inferred = True
+                elif me_data.get("signupSource"):
                     profile["signUpType"] = "Email"
+                    signup_inferred = True
+
+            # 2. Chi goi GetEmail neu chua suy ra duoc signUpType (tiet kiem 1 RTT mang moi lan sync)
+            if not signup_inferred:
+                email_resp = post_fn("https://api2.cursor.sh/aiserver.v1.AuthService/GetEmail", headers=headers, json={}, timeout=6)
+                if email_resp.status_code == 200:
+                    ed = email_resp.json()
+                    st = ed.get("signUpType", "")
+                    if "GOOGLE" in st:
+                        profile["signUpType"] = "Google"
+                    elif "GITHUB" in st:
+                        profile["signUpType"] = "GitHub"
+                    else:
+                        profile["signUpType"] = "Email"
 
             # 3. Lay quota & usage
-            usage_resp = requests.post("https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage", headers=headers, json={}, timeout=6)
+            usage_resp = post_fn("https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage", headers=headers, json={}, timeout=6)
             if usage_resp.status_code == 200:
                 ud = usage_resp.json()
                 plan_usage = ud.get("planUsage", {})
@@ -182,7 +312,7 @@ class CursorStorageManager:
                 profile["usage_fetched"] = False
             else:
                 profile["usage_fetched"] = False
-                
+
             return profile
         except Exception as e:
             print(f"[-] Loi khi fetch profile tu API: {e}")

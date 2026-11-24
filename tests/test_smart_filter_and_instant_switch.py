@@ -37,7 +37,15 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
     def setUpClass(cls):
         app.config["TESTING"] = True
         cls.client = app.test_client()
-        cls.storage = CursorStorageManager()
+        cls._tmp_dir = tempfile.mkdtemp(prefix="cr_smart_test_")
+        fake_vscdb = os.path.join(cls._tmp_dir, "state.vscdb")
+        con_v = sqlite3.connect(fake_vscdb)
+        con_v.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+        con_v.commit()
+        con_v.close()
+        cls._orig_pool_vscdb = pool.storage.db_path
+        pool.storage.db_path = fake_vscdb
+        cls.storage = CursorStorageManager(db_path=fake_vscdb)
         cls.settings = CursorSettingsManager()
         cls.filter = SmartTaskCompletionFilter()
 
@@ -57,6 +65,7 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
             (99901, "test_smart_1.txt", "smart_test1@example.com", "Smart Test 1", _make_mock_jwt("smart_test1@example.com", "Smart Test 1"), "test_ref_1", 10.0, 0.0, "READY", 0),
             (99902, "test_smart_2.txt", "smart_test2@example.com", "Smart Test 2", _make_mock_jwt("smart_test2@example.com", "Smart Test 2"), "test_ref_2", 15.0, 0.0, "READY", 0),
             (99903, "test_smart_3.txt", "smart_test3@example.com", "Smart Test 3", _make_mock_jwt("smart_test3@example.com", "Smart Test 3"), "test_ref_3", 20.0, 0.0, "READY", 0),
+            (99904, "test_smart_4.txt", "smart_test4@example.com", "Smart Test 4", _make_mock_jwt("smart_test4@example.com", "Smart Test 4"), "test_ref_4", 25.0, 0.0, "READY", 0),
         ]
         for row in test_rows:
             if has_cd:
@@ -74,14 +83,16 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        pool.storage.db_path = cls._orig_pool_vscdb
         try:
             con = sqlite3.connect("cursor_accounts.db")
             cur = con.cursor()
-            cur.execute("DELETE FROM accounts WHERE id IN (99901, 99902, 99903)")
+            cur.execute("DELETE FROM accounts WHERE id IN (99901, 99902, 99903, 99904)")
             con.commit()
             con.close()
         except Exception:
             pass
+        shutil.rmtree(cls._tmp_dir, ignore_errors=True)
 
     def setUp(self):
         TaskStateTracker().reset()
@@ -216,7 +227,12 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
         email_before = (active_before.get("email") or "").strip()
 
         t0 = time.perf_counter()
-        best = pool.trigger_immediate_auto_switch(reason="Test 429 Quota Exhaustion Trigger", reset_mode="soft_reload")
+        with patch.object(cursor_reloader, "trigger_cursor_reload", return_value={"success": True}), \
+             patch.object(cursor_reloader, "hard_restart_cursor", return_value={"success": True}), \
+             patch.object(cursor_reloader, "terminate_cursor", return_value=True), \
+             patch.object(cursor_reloader, "launch_cursor_app", return_value=True), \
+             patch.object(cursor_reloader, "send_continue_prompt", return_value={"success": True}):
+            best = pool.trigger_immediate_auto_switch(reason="Test 429 Quota Exhaustion Trigger", reset_mode="soft_reload")
         t_switch_ms = (time.perf_counter() - t0) * 1000
 
         self.assertIsNotNone(best)
@@ -313,7 +329,12 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
 
     def test_14_api_auto_switch_immediate_endpoint(self):
         """Test /api/auto-switch/immediate endpoint."""
-        res = self.client.post("/api/auto-switch/immediate", json={"reason": "API Immediate Switch Test"})
+        with patch.object(cursor_reloader, "trigger_cursor_reload", return_value={"success": True}), \
+             patch.object(cursor_reloader, "hard_restart_cursor", return_value={"success": True}), \
+             patch.object(cursor_reloader, "terminate_cursor", return_value=True), \
+             patch.object(cursor_reloader, "launch_cursor_app", return_value=True), \
+             patch.object(cursor_reloader, "send_continue_prompt", return_value={"success": True}):
+            res = self.client.post("/api/auto-switch/immediate", json={"reason": "API Immediate Switch Test"})
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data.get("success"))
@@ -390,11 +411,16 @@ class TestSmartFilterAndInstantSwitch(unittest.TestCase):
         """trigger_immediate_auto_switch must honor auto_continue=False explicitly."""
         active_before = self.storage.get_active_account()
 
-        best = pool.trigger_immediate_auto_switch(
-            reason="Explicit Test No Auto Continue",
-            auto_continue=False,
-            spoof_hw=True
-        )
+        with patch.object(cursor_reloader, "trigger_cursor_reload", return_value={"success": True}), \
+             patch.object(cursor_reloader, "hard_restart_cursor", return_value={"success": True}), \
+             patch.object(cursor_reloader, "terminate_cursor", return_value=True), \
+             patch.object(cursor_reloader, "launch_cursor_app", return_value=True), \
+             patch.object(cursor_reloader, "send_continue_prompt", return_value={"success": True}):
+            best = pool.trigger_immediate_auto_switch(
+                reason="Explicit Test No Auto Continue",
+                auto_continue=False,
+                spoof_hw=True
+            )
         self.assertIsNotNone(best)
 
         # Ensure filter does not allow continuation

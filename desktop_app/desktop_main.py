@@ -68,7 +68,8 @@ class DesktopAppController:
         def _run():
             try:
                 from werkzeug.serving import run_simple
-                from server import app
+                from server import app, start_background_services
+                start_background_services()
                 run_simple('127.0.0.1', self.port, app, threaded=True, use_reloader=False)
             except Exception as e:
                 print(f'[-] Background server error: {e}')
@@ -88,10 +89,16 @@ class DesktopAppController:
             release_all_modifier_keys()
         except Exception:
             pass
+        try:
+            from server import stop_background_services
+            stop_background_services()
+        except Exception:
+            pass
 
     def launch(self):
         self.running = True
-        os.makedirs(os.path.join(ROOT_DIR, 'Cookies'), exist_ok=True)
+        from app_paths import get_cookies_dir
+        os.makedirs(get_cookies_dir(), exist_ok=True)
 
         cursor_online = is_cursor_running()
         if cursor_online:
@@ -110,7 +117,7 @@ class DesktopAppController:
         try:
             import webview
             self.window = webview.create_window(
-                title='CursorRouter - Intelligent Quota Manager',
+                title='CursorRouter v3.0 — Intelligent Quota Manager',
                 url=url,
                 width=1440,
                 height=920,
@@ -130,7 +137,7 @@ class DesktopAppController:
                     ctypes.windll.user32.MessageBoxW(
                         0,
                         f"Không thể khởi động cửa sổ Native Desktop: {e}\n\nVui lòng cài đặt Microsoft Edge WebView2 Runtime.",
-                        "Cursor Manager - Native App Error",
+                        "CursorRouter - Native App Error",
                         0x10 | 0x0
                     )
                 except Exception:

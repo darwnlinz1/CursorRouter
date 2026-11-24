@@ -34,12 +34,98 @@ import account_pool
 class TestCursorManagerFullSuite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        import base64
+        import sqlite3
+        from token_cipher import encrypt_token
+
         cls.client = app.test_client()
+        cls._tmp_dir = tempfile.mkdtemp(prefix="cr_full_suite_")
+
+        # Isolate Cursor state.vscdb, settings.json, storage.json, .cursorrules
+        cls._orig_storage_db = pool.storage.db_path
+        cls._orig_settings_path = settings_manager.settings_path
+        cls._orig_storage_path = settings_manager.storage_path
+        cls._orig_storage_bak = settings_manager.storage_bak_path
+        cls._orig_storage_orig_bak = settings_manager.storage_orig_bak_path
+        cls._orig_rules_path = settings_manager.cursorrules_path
+
+        fake_vscdb = os.path.join(cls._tmp_dir, "state.vscdb")
+        con_v = sqlite3.connect(fake_vscdb)
+        con_v.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+        con_v.commit()
+        con_v.close()
+
+        fake_storage_json = os.path.join(cls._tmp_dir, "storage.json")
+        with open(fake_storage_json, "w", encoding="utf-8") as f:
+            json.dump({
+                "telemetry.machineId": "a" * 64,
+                "telemetry.macMachineId": "b" * 64,
+                "telemetry.devDeviceId": "11111111-2222-3333-4444-555555555555",
+                "telemetry.sqmId": "{11111111-2222-3333-4444-555555555555}",
+            }, f)
+
+        fake_settings_json = os.path.join(cls._tmp_dir, "settings.json")
+        with open(fake_settings_json, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+
+        pool.storage.db_path = fake_vscdb
+        settings_manager.settings_path = fake_settings_json
+        settings_manager.storage_path = fake_storage_json
+        settings_manager.storage_bak_path = fake_storage_json + ".bak"
+        settings_manager.storage_orig_bak_path = fake_storage_json + ".orig.bak"
+        settings_manager.cursorrules_path = os.path.join(cls._tmp_dir, ".cursorrules")
+
+        # Seed deterministic account #1 (backup existing row #1 if any)
+        h = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).decode().rstrip("=")
+        p = base64.urlsafe_b64encode(json.dumps({
+            "email": "13vladoprea@gmail.com",
+            "name": "Vlad Test",
+            "sub": "auth0|user_vlad_test",
+            "exp": 1999999999,
+        }).encode()).decode().rstrip("=")
+        mock_jwt = f"{h}.{p}.fake_sig"
+
+        con = sqlite3.connect(account_pool.DB_FILE, timeout=30.0)
+        con.row_factory = sqlite3.Row
+        cur = con.cursor()
+        row1 = cur.execute("SELECT * FROM accounts WHERE id = 1").fetchone()
+        cls._prev_row1 = dict(row1) if row1 else None
+        cur.execute("DELETE FROM accounts WHERE id = 1 OR LOWER(email) = '13vladoprea@gmail.com'")
+        cur.execute("""
+            INSERT INTO accounts (id, file_name, email, display_name, access_token, refresh_token, usage_percent, total_spend, status)
+            VALUES (1, '13vladoprea@gmail.com.txt', '13vladoprea@gmail.com', 'Vlad Test', ?, ?, 5.0, 10.0, 'READY')
+        """, (encrypt_token(mock_jwt), encrypt_token(mock_jwt)))
+        con.commit()
+        con.close()
+
         pool.switch_to_account(1, auto_reload=False)
 
     @classmethod
     def tearDownClass(cls):
-        pool.switch_to_account(1, auto_reload=False)
+        import sqlite3
+        pool.storage.db_path = cls._orig_storage_db
+        settings_manager.settings_path = cls._orig_settings_path
+        settings_manager.storage_path = cls._orig_storage_path
+        settings_manager.storage_bak_path = cls._orig_storage_bak
+        settings_manager.storage_orig_bak_path = cls._orig_storage_orig_bak
+        settings_manager.cursorrules_path = cls._orig_rules_path
+
+        try:
+            con = sqlite3.connect(account_pool.DB_FILE, timeout=30.0)
+            cur = con.cursor()
+            cur.execute("DELETE FROM accounts WHERE id = 1 AND email = '13vladoprea@gmail.com'")
+            if cls._prev_row1:
+                cols = list(cls._prev_row1.keys())
+                placeholders = ",".join("?" for _ in cols)
+                cur.execute(
+                    f"INSERT OR REPLACE INTO accounts ({','.join(cols)}) VALUES ({placeholders})",
+                    [cls._prev_row1[c] for c in cols],
+                )
+            con.commit()
+            con.close()
+        except Exception:
+            pass
+        shutil.rmtree(cls._tmp_dir, ignore_errors=True)
 
     def test_01_jwt_decoding_utility(self):
         """Test standalone JWT payload decoding."""

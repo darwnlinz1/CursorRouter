@@ -72,7 +72,8 @@ class NativeAppController:
         def _run():
             try:
                 from werkzeug.serving import run_simple
-                from server import app
+                from server import app, start_background_services
+                start_background_services()
                 run_simple("127.0.0.1", self.port, app, threaded=True, use_reloader=False)
             except Exception as e:
                 print(f"[-] Loi khoi dong server ngam: {e}")
@@ -94,11 +95,17 @@ class NativeAppController:
             release_all_modifier_keys()
         except Exception:
             pass
+        try:
+            from server import stop_background_services
+            stop_background_services()
+        except Exception:
+            pass
 
     def launch(self):
         """Khởi chạy ứng dụng Native Desktop."""
         self.running = True
-        os.makedirs(os.path.join(ROOT_DIR, "Cookies"), exist_ok=True)
+        from app_paths import get_cookies_dir
+        os.makedirs(get_cookies_dir(), exist_ok=True)
         
         # 1. Phát hiện Cursor IDE
         cursor_online = is_cursor_running()
@@ -121,12 +128,12 @@ class NativeAppController:
         try:
             import webview
             self.window = webview.create_window(
-                title="Cursor Manager & Account Pool",
+                title="CursorRouter v3.0 — Cursor Manager",
                 url=url,
                 width=1440,
                 height=920,
                 min_size=(1024, 720),
-                background_color="#0e0e0e",
+                background_color="#0a0a0a",
                 text_select=True,
                 zoomable=True
             )

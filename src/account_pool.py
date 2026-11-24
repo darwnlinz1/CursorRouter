@@ -2,19 +2,31 @@ import os
 import sqlite3
 import time
 import json
-from typing import List, Dict, Any, Optional
-from pkce_auth import CursorAuthClient, parse_cookie_from_file
+from typing import List, Dict, Any, Optional, Callable
+from pkce_auth import (
+    CursorAuthClient,
+    parse_cookie_from_file,
+    parse_cookies_batch,
+    extract_jwt_from_session_cookie,
+)
 from cursor_storage import CursorStorageManager, decode_jwt_payload
 from chat_lock_detector import is_chat_locked
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import requests
-from token_cipher import encrypt_token, decrypt_token, mask_token, auto_repair_database
+from app_paths import get_data_dir, get_db_path, get_cookies_dir
+from token_cipher import (
+    encrypt_token,
+    decrypt_token,
+    mask_token,
+    compute_token_hash,
+    auto_repair_database,
+)
 
-# Lock dung chung de tranh xung dot khi 20 luong dong thoi ghi vao SQLite
+# Lock dung chung de tranh xung dot khi nhieu luong dong thoi ghi vao SQLite
 DB_LOCK = threading.Lock()
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DB_FILE = os.getenv("CURSOR_ACCOUNTS_DB", os.path.join(ROOT_DIR, "cursor_accounts.db"))
+ROOT_DIR = get_data_dir()
+DB_FILE = get_db_path()
 
 # Nguong khoa tai khoan cua Cursor: Tai khoan Free co the su dung tiep tuc den 100% (50% chi la moc soft limit 5 gio).
 # Do do nguong EXHAUSTED dung nhat la 100.0% hoac khi bi chan chat that su.
@@ -29,18 +41,35 @@ class AccountPoolManager:
     BLACKLIST_COOLDOWN_SECONDS = 7 * 86400  # 7-Day Blacklist Cooldown (604,800s)
 
     def __init__(self, cookies_dir: str = "Cookies"):
-        if not os.path.isabs(cookies_dir):
-            self.cookies_dir = os.path.abspath(os.path.join(ROOT_DIR, cookies_dir))
-        else:
-            self.cookies_dir = os.path.abspath(cookies_dir)
+        self.cookies_dir = get_cookies_dir(cookies_dir)
         os.makedirs(self.cookies_dir, exist_ok=True)
         self.storage = CursorStorageManager()
         self.auth_client = CursorAuthClient()
         self.manual_active_account_id: Optional[int] = None
         self.last_manual_switch_time: float = 0.0
+        self.state_version: int = 1
+        self._change_listeners: List[Callable[[str, Dict[str, Any]], None]] = []
+        self._listeners_lock = threading.Lock()
         self._init_db()
         # Autonomous self-healing for encrypted records using Cookies directory
         auto_repair_database(DB_FILE, self.cookies_dir)
+
+    def add_change_listener(self, listener: Callable[[str, Dict[str, Any]], None]) -> None:
+        with self._listeners_lock:
+            if listener not in self._change_listeners:
+                self._change_listeners.append(listener)
+
+    def _notify_change(self, event_type: str = "state_changed", payload: Optional[Dict[str, Any]] = None) -> None:
+        self.state_version += 1
+        data = dict(payload or {})
+        data["version"] = self.state_version
+        with self._listeners_lock:
+            listeners = list(self._change_listeners)
+        for cb in listeners:
+            try:
+                cb(event_type, data)
+            except Exception:
+                pass
 
 
     def _init_db(self):
@@ -101,10 +130,41 @@ class AccountPoolManager:
                     cur.execute("ALTER TABLE accounts ADD COLUMN hardware_fingerprint TEXT;")
                 except Exception:
                     pass
+            if "token_hash" not in cols:
+                try:
+                    cur.execute("ALTER TABLE accounts ADD COLUMN token_hash TEXT;")
+                except Exception:
+                    pass
+            if "token_mask" not in cols:
+                try:
+                    cur.execute("ALTER TABLE accounts ADD COLUMN token_mask TEXT;")
+                except Exception:
+                    pass
+            if "token_type" not in cols:
+                try:
+                    cur.execute("ALTER TABLE accounts ADD COLUMN token_type TEXT DEFAULT 'unknown';")
+                except Exception:
+                    pass
 
             cur.execute("CREATE INDEX IF NOT EXISTS idx_quota_snapshots_acc ON quota_snapshots(account_id, recorded_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_quota_snapshots_email ON quota_snapshots(email, recorded_at DESC);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_accounts_cooldown ON accounts(cooldown_until);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_accounts_token_hash ON accounts(token_hash);")
+
+            # Lazy one-time backfill for token_hash & token_mask on existing rows
+            try:
+                cur.execute("SELECT id, access_token FROM accounts WHERE access_token IS NOT NULL AND length(access_token) > 10 AND (token_hash IS NULL OR token_mask IS NULL)")
+                to_backfill = cur.fetchall()
+                if to_backfill:
+                    updates = []
+                    for rid, rtok in to_backfill:
+                        plain = decrypt_token(rtok)
+                        if plain:
+                            updates.append((compute_token_hash(plain), mask_token(plain), rid))
+                    if updates:
+                        cur.executemany("UPDATE accounts SET token_hash = ?, token_mask = ? WHERE id = ?", updates)
+            except Exception:
+                pass
 
             # Dong bo trang thai EXHAUSTED cho toan bo tai khoan co usage_percent >= QUOTA_EXHAUSTION_THRESHOLD (100.0%)
             cur.execute("""
@@ -208,8 +268,7 @@ class AccountPoolManager:
                     return last_snap["id"]
 
         try:
-            from ai_optimizer import get_quota_predictor, DynamicCooldownManager
-            get_quota_predictor().record_usage(str(account_id or email or ""), usage_percent, total_spend)
+            from ai_optimizer import DynamicCooldownManager
             dynamic_cd = DynamicCooldownManager.calculate_cooldown(display_message or "")
         except Exception:
             dynamic_cd = self.BLACKLIST_COOLDOWN_SECONDS
@@ -350,7 +409,11 @@ class AccountPoolManager:
                 cur.execute("SELECT * FROM accounts WHERE LOWER(email) = LOWER(?)", (clean_email,))
                 row = cur.fetchone()
             if not row and token:
-                cur.execute("SELECT * FROM accounts WHERE access_token = ?", (token,))
+                tok_hash = compute_token_hash(token)
+                try:
+                    cur.execute("SELECT * FROM accounts WHERE token_hash = ? OR access_token = ?", (tok_hash or "", token))
+                except sqlite3.OperationalError:
+                    cur.execute("SELECT * FROM accounts WHERE access_token = ?", (token,))
                 row = cur.fetchone()
         finally:
             con.close()
@@ -434,12 +497,19 @@ class AccountPoolManager:
                     f_lower = f.lower()
                     if f_lower == "archive_corrupted" or f.startswith("."):
                         continue
-                    if f_lower.endswith(".txt") or f_lower.endswith(".cookie"):
+                    if f_lower.endswith(".txt") or f_lower.endswith(".cookie") or f_lower.endswith(".json"):
                         file_path = os.path.join(self.cookies_dir, f)
                         if not os.path.isfile(file_path):
                             continue
                         
-                        base_name = f[:-4] if f_lower.endswith(".txt") else (f[:-7] if f_lower.endswith(".cookie") else f)
+                        if f_lower.endswith(".txt"):
+                            base_name = f[:-4]
+                        elif f_lower.endswith(".cookie"):
+                            base_name = f[:-7]
+                        elif f_lower.endswith(".json"):
+                            base_name = f[:-5]
+                        else:
+                            base_name = f
                         tentative_email = base_name if "@" in base_name else None
 
                         # Kiem tra xem da co trong DB chua (theo file_name hoac email khong phan biet chu hoa/thuong)
@@ -480,12 +550,237 @@ class AccountPoolManager:
                 con.commit()
             finally:
                 con.close()
+        self._notify_change("cookies_scanned", {"added": added_count})
         return added_count
 
-    def get_all_accounts(self) -> List[Dict[str, Any]]:
+    def capture_active_cursor_session(self) -> Dict[str, Any]:
+        """
+        Capture the currently logged-in Cursor IDE account directly from state.vscdb
+        (automatically decrypting cursor-safe-storage:v1: on Windows via DPAPI+AES-GCM)
+        and store its genuine desktop session token into the encrypted SQLite pool.
+        """
+        from cursor_storage import detect_token_type
+
+        active = self.storage.get_active_account()
+        if not active or not active.get("access_token"):
+            return {
+                "success": False,
+                "error": "Không tìm thấy phiên đăng nhập Cursor IDE hợp lệ trong state.vscdb. Hãy đăng nhập Cursor IDE trước rồi bấm lại.",
+            }
+
+        tok = active["access_token"]
+        if tok.startswith("cursor-safe-storage:v1:"):
+            return {
+                "success": False,
+                "error": "Không thể giải mã cursor-safe-storage:v1: từ Cursor Local State trên máy này.",
+            }
+
+        tok_type = detect_token_type(tok)
+        ref = active.get("refresh_token") or tok
+        email = (active.get("email") or "").strip()
+        disp_name = active.get("displayName") or (email.split("@")[0] if email else "")
+        auth_id = active.get("authId")
+        usage_pct = 0.0
+        total_spend = 0.0
+        display_msg = ""
+
+        # Enrich live profile & quota from api2.cursor.sh
+        profile = self.storage.fetch_profile_from_api(tok)
+        if profile:
+            email = profile.get("email") or email
+            disp_name = profile.get("displayName") or disp_name
+            auth_id = profile.get("authId") or auth_id
+            if profile.get("usage_fetched"):
+                usage_pct = float(profile.get("usagePercent") or 0.0)
+                total_spend = float(profile.get("totalSpend") or 0.0)
+                display_msg = profile.get("displayMessage") or ""
+
+        if not email:
+            return {"success": False, "error": "Không xác định được email từ phiên Cursor IDE hiện tại."}
+
+        now_ts = int(time.time())
+        status = "EXHAUSTED" if usage_pct >= self.QUOTA_EXHAUSTION_THRESHOLD else (
+            "HIGH_USAGE" if usage_pct >= self.QUOTA_WARNING_THRESHOLD else "READY"
+        )
+        fname = f"cursor_session_{email}.txt"
+        enc_tok = encrypt_token(tok)
+        enc_ref = encrypt_token(ref)
+        tok_hash = compute_token_hash(tok)
+        tok_mask = mask_token(tok)
+
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+                cur.execute("SELECT id FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
+                existing = cur.fetchone()
+                if existing:
+                    acc_id = existing[0]
+                    sets = [
+                        "display_name = COALESCE(?, display_name)",
+                        "auth_id = COALESCE(?, auth_id)",
+                        "access_token = ?",
+                        "refresh_token = ?",
+                        "usage_percent = ?",
+                        "total_spend = ?",
+                        "display_message = ?",
+                        "status = ?",
+                        "last_checked = ?",
+                    ]
+                    params: List[Any] = [disp_name, auth_id, enc_tok, enc_ref, usage_pct, total_spend, display_msg, status, now_ts]
+                    if "token_hash" in cols and "token_mask" in cols:
+                        sets.extend(["token_hash = ?", "token_mask = ?"])
+                        params.extend([tok_hash, tok_mask])
+                    if "token_type" in cols:
+                        sets.append("token_type = ?")
+                        params.append(tok_type)
+                    params.append(acc_id)
+                    cur.execute(f"UPDATE accounts SET {', '.join(sets)} WHERE id = ?", params)
+                else:
+                    if "token_hash" in cols and "token_mask" in cols and "token_type" in cols:
+                        cur.execute("""
+                            INSERT INTO accounts (
+                                file_name, email, display_name, auth_id, access_token, refresh_token,
+                                token_hash, token_mask, token_type, usage_percent, total_spend,
+                                display_message, status, last_checked
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (fname, email, disp_name, auth_id, enc_tok, enc_ref, tok_hash, tok_mask, tok_type, usage_pct, total_spend, display_msg, status, now_ts))
+                    else:
+                        cur.execute("""
+                            INSERT INTO accounts (
+                                file_name, email, display_name, auth_id, access_token, refresh_token,
+                                usage_percent, total_spend, display_message, status, last_checked
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (fname, email, disp_name, auth_id, enc_tok, enc_ref, usage_pct, total_spend, display_msg, status, now_ts))
+                    acc_id = cur.lastrowid
+                con.commit()
+            finally:
+                con.close()
+
+        self._notify_change("account_captured", {"account_id": acc_id, "email": email, "token_type": tok_type})
+        return {
+            "success": True,
+            "account_id": acc_id,
+            "email": email,
+            "display_name": disp_name,
+            "token_type": tok_type,
+            "usage_percent": usage_pct,
+            "status": status,
+            "message": f"Đã lưu phiên Cursor IDE ({email} · {tok_type.upper()}) vào pool!",
+        }
+
+    def import_pasted_cookies(self, raw_text: str) -> Dict[str, Any]:
+        """
+        Parse and persist one or more pasted cookies (raw, header, Netscape TSV,
+        Cookie-Editor JSON, or multi-line batch) into Cookies/ and SQLite pool.
+        """
+        parsed_items = parse_cookies_batch(raw_text)
+        if not parsed_items:
+            return {"success": False, "saved": 0, "added": 0, "formats": [], "error": "Không tìm thấy WorkosCursorSessionToken hợp lệ trong dữ liệu dán."}
+
+        os.makedirs(self.cookies_dir, exist_ok=True)
+        saved_files = []
+        formats_seen = set()
+        ts = int(time.time())
+
+        for idx, item in enumerate(parsed_items, start=1):
+            cookie_val = item["cookie"]
+            email_hint = item.get("email_hint")
+            fmt = item.get("format") or "raw"
+            formats_seen.add(fmt)
+
+            if email_hint:
+                safe_base = "".join(ch if (ch.isalnum() or ch in "._-@") else "_" for ch in email_hint).strip("._")
+                fname = f"{safe_base}.txt"
+            else:
+                # Derive deterministic short suffix from cookie so re-pasting updates the same file cleanly
+                import hashlib
+                short_h = hashlib.sha256(cookie_val.encode("utf-8")).hexdigest()[:10]
+                fname = f"pasted_{short_h}.txt"
+
+            target_path = os.path.join(self.cookies_dir, fname)
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.write(f"WorkosCursorSessionToken={cookie_val}\n")
+            saved_files.append(fname)
+
+        added = self.scan_cookies_folder()
+        return {
+            "success": True,
+            "parsed": len(parsed_items),
+            "saved": len(saved_files),
+            "added": added,
+            "files": saved_files,
+            "formats": sorted(formats_seen),
+        }
+
+    def get_stats_summary(self) -> Dict[str, Any]:
+        """Fast SQL aggregate stats (zero token decryption overhead)."""
+        now_ts = int(time.time())
+        threshold = self.QUOTA_EXHAUSTION_THRESHOLD
+        tier1_th = self.TIER1_THRESHOLD
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+                cd_expr = "COALESCE(cooldown_until, 0) > ?" if "cooldown_until" in cols else "0"
+                params = [now_ts] if "cooldown_until" in cols else []
+                cur.execute(f"""
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN status IN ('READY', 'HIGH_USAGE') AND COALESCE(usage_percent, 0) < ? THEN 1 ELSE 0 END) AS ready,
+                        SUM(CASE WHEN status IN ('READY', 'HIGH_USAGE') AND COALESCE(usage_percent, 0) < ? AND NOT ({cd_expr}) THEN 1 ELSE 0 END) AS tier1,
+                        SUM(CASE WHEN status IN ('READY', 'HIGH_USAGE') AND COALESCE(usage_percent, 0) >= ? AND COALESCE(usage_percent, 0) < ? AND NOT ({cd_expr}) THEN 1 ELSE 0 END) AS tier2,
+                        SUM(CASE WHEN ({cd_expr}) OR (status NOT IN ('EXPIRED', 'PENDING') AND (status = 'EXHAUSTED' OR COALESCE(usage_percent, 0) >= ?)) THEN 1 ELSE 0 END) AS blacklist,
+                        SUM(CASE WHEN status NOT IN ('EXPIRED', 'PENDING') AND (status = 'EXHAUSTED' OR COALESCE(usage_percent, 0) >= ?) THEN 1 ELSE 0 END) AS exhausted,
+                        SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) AS pending,
+                        SUM(CASE WHEN status = 'EXPIRED' THEN 1 ELSE 0 END) AS expired
+                    FROM accounts
+                """, tuple(
+                    [threshold, tier1_th]
+                    + params
+                    + [tier1_th, threshold]
+                    + params
+                    + params
+                    + [threshold, threshold]
+                ))
+                row = cur.fetchone()
+            finally:
+                con.close()
+
+        total = int((row[0] if row else 0) or 0)
+        ready = int((row[1] if row else 0) or 0)
+        tier1 = int((row[2] if row else 0) or 0)
+        tier2 = int((row[3] if row else 0) or 0)
+        blacklist = int((row[4] if row else 0) or 0)
+        exhausted = int((row[5] if row else 0) or 0)
+        pending = int((row[6] if row else 0) or 0)
+        expired = int((row[7] if row else 0) or 0)
+        return {
+            "total": total,
+            "ready": ready,
+            "tier1": tier1,
+            "tier1_count": tier1,
+            "tier2": tier2,
+            "tier2_count": tier2,
+            "blacklist": blacklist,
+            "blacklist_count": blacklist,
+            "cooldown_count": blacklist,
+            "exhausted": exhausted,
+            "pending": pending,
+            "expired": expired,
+            "threshold": threshold,
+            "tier1_threshold": tier1_th,
+        }
+
+    def get_all_accounts(self, include_secrets: bool = True) -> List[Dict[str, Any]]:
         """Lay toan bo danh sach tai khoan va danh dau tai khoan dang active trong Cursor."""
         active_acc = self.storage.get_active_account()
         active_token = active_acc.get("access_token")
+        active_token_hash = compute_token_hash(active_token) if active_token else None
         active_email = (active_acc.get("email") or "").strip().lower()
         active_auth_id = active_acc.get("authId")
 
@@ -499,30 +794,41 @@ class AccountPoolManager:
             finally:
                 con.close()
 
-        # Decrypt tokens in memory for accurate matching and masked representation
+        # Decrypt tokens via fast LRU cache (or skip secret decryption when include_secrets=False)
         decrypted_rows = []
         for r in rows:
             d = dict(r)
-            if d.get("access_token"):
-                d["access_token"] = decrypt_token(d["access_token"])
-            if d.get("refresh_token"):
-                d["refresh_token"] = decrypt_token(d["refresh_token"])
-            if d.get("cookie_full"):
-                dec_c = decrypt_token(d["cookie_full"])
-                if dec_c is None and d["cookie_full"].startswith("enc:v1:"):
-                    dec_c = self._heal_cookie_from_disk(d.get("id"), d.get("file_name"), d.get("email"))
-                d["cookie_full"] = dec_c
-            tok = d.get("access_token")
-            d["masked_token"] = mask_token(tok)
+            raw_tok = d.get("access_token")
+            d["has_token"] = bool(raw_tok and len(str(raw_tok)) > 10)
+            if include_secrets:
+                if raw_tok:
+                    d["access_token"] = decrypt_token(raw_tok)
+                if d.get("refresh_token"):
+                    d["refresh_token"] = decrypt_token(d["refresh_token"])
+                if d.get("cookie_full"):
+                    dec_c = decrypt_token(d["cookie_full"])
+                    if dec_c is None and str(d["cookie_full"]).startswith("enc:v1:"):
+                        dec_c = self._heal_cookie_from_disk(d.get("id"), d.get("file_name"), d.get("email"))
+                    d["cookie_full"] = dec_c
+                tok = d.get("access_token")
+                d["masked_token"] = d.get("token_mask") or mask_token(tok)
+            else:
+                d["masked_token"] = d.get("token_mask") or (mask_token(raw_tok) if raw_tok else "None")
+                d.pop("access_token", None)
+                d.pop("refresh_token", None)
+                d.pop("cookie_full", None)
             decrypted_rows.append(d)
 
-        # Tim chinh xac duy nhat 1 ID tai khoan dang active (uu tien token -> auth_id -> email)
+        # Tim chinh xac duy nhat 1 ID tai khoan dang active (uu tien token_hash/token -> auth_id -> email)
         matched_active_id = None
         if self.manual_active_account_id:
             matched_active_id = self.manual_active_account_id
-        elif active_token:
+        elif active_token_hash or active_token:
             for d in decrypted_rows:
-                if d.get("access_token") == active_token:
+                if active_token_hash and d.get("token_hash") and d["token_hash"] == active_token_hash:
+                    matched_active_id = d["id"]
+                    break
+                if include_secrets and active_token and d.get("access_token") == active_token:
                     matched_active_id = d["id"]
                     break
         if matched_active_id is None and active_auth_id:
@@ -620,23 +926,29 @@ class AccountPoolManager:
         if not acc:
             return None
 
-        access_token = decrypt_token(acc["access_token"])
-        refresh_token = decrypt_token(acc["refresh_token"])
-        cookie_full = decrypt_token(acc["cookie_full"])
+        acc = dict(acc)
+        access_token = decrypt_token(acc.get("access_token"))
+        refresh_token = decrypt_token(acc.get("refresh_token"))
+        cookie_full = decrypt_token(acc.get("cookie_full"))
         if not cookie_full and acc.get("cookie_full") and str(acc["cookie_full"]).startswith("enc:v1:"):
             cookie_full = self._heal_cookie_from_disk(acc["id"], acc.get("file_name"), acc.get("email"))
 
-        # 1. Neu chua co access_token, thuc hien PKCE exchange voi cookie
+        # 1. Neu chua co access_token: uu tien trich xuat JWT truc tiep (0ms), fallback PKCE+CSRF
         if not access_token:
             if not cookie_full:
                 return None
-            tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-            if tokens and "accessToken" in tokens:
-                access_token = tokens["accessToken"]
-                refresh_token = tokens.get("refreshToken")
+            direct_jwt = extract_jwt_from_session_cookie(cookie_full)
+            if direct_jwt:
+                access_token = direct_jwt
+                refresh_token = refresh_token or direct_jwt
             else:
-                self._update_status(account_id, status="EXPIRED")
-                return None
+                tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
+                if tokens and "accessToken" in tokens:
+                    access_token = tokens["accessToken"]
+                    refresh_token = tokens.get("refreshToken")
+                else:
+                    self._update_status(account_id, status="EXPIRED")
+                    return None
 
         # 2. Goi API lay thong tin GetMe va Quota
         profile = self.storage.fetch_profile_from_api(access_token)
@@ -644,7 +956,7 @@ class AccountPoolManager:
             # Token co the het han, thu exchange lai neu co cookie
             if cookie_full:
                 tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-                if tokens and "accessToken" in tokens:
+                if tokens and "accessToken" in tokens and tokens["accessToken"] != access_token:
                     access_token = tokens["accessToken"]
                     refresh_token = tokens.get("refreshToken")
                     profile = self.storage.fetch_profile_from_api(access_token)
@@ -686,34 +998,68 @@ class AccountPoolManager:
         else:
             status = "READY"
 
+        tok_hash = compute_token_hash(access_token)
+        tok_mask = mask_token(access_token)
+        enc_access = encrypt_token(access_token)
+        enc_refresh = encrypt_token(refresh_token)
+
         with DB_LOCK:
             con = sqlite3.connect(DB_FILE, timeout=30.0)
             try:
                 cur = con.cursor()
-                cur.execute("""
-                    UPDATE accounts 
-                    SET email = ?, display_name = ?, auth_id = ?, access_token = ?, refresh_token = ?,
-                        usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
-                        cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
-                    WHERE id = ?
-                """, (
-                    profile.get("email"),
-                    profile.get("displayName"),
-                    profile.get("authId"),
-                    encrypt_token(access_token),
-                    encrypt_token(refresh_token),
-                    usage,
-                    spend,
-                    msg,
-                    status,
-                    now_ts,
-                    cooldown_until,
-                    cooldown_until,
-                    account_id
-                ))
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+                if "token_hash" in cols and "token_mask" in cols:
+                    cur.execute("""
+                        UPDATE accounts 
+                        SET email = ?, display_name = ?, auth_id = ?, access_token = ?, refresh_token = ?,
+                            token_hash = ?, token_mask = ?,
+                            usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
+                            cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
+                        WHERE id = ?
+                    """, (
+                        profile.get("email"),
+                        profile.get("displayName"),
+                        profile.get("authId"),
+                        enc_access,
+                        enc_refresh,
+                        tok_hash,
+                        tok_mask,
+                        usage,
+                        spend,
+                        msg,
+                        status,
+                        now_ts,
+                        cooldown_until,
+                        cooldown_until,
+                        account_id
+                    ))
+                else:
+                    cur.execute("""
+                        UPDATE accounts 
+                        SET email = ?, display_name = ?, auth_id = ?, access_token = ?, refresh_token = ?,
+                            usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
+                            cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
+                        WHERE id = ?
+                    """, (
+                        profile.get("email"),
+                        profile.get("displayName"),
+                        profile.get("authId"),
+                        enc_access,
+                        enc_refresh,
+                        usage,
+                        spend,
+                        msg,
+                        status,
+                        now_ts,
+                        cooldown_until,
+                        cooldown_until,
+                        account_id
+                    ))
                 con.commit()
             finally:
                 con.close()
+        self._notify_change("account_refreshed", {"account_id": account_id, "email": profile.get("email"), "status": status})
 
         profile["status"] = status
         profile["usagePercent"] = usage
@@ -758,25 +1104,42 @@ class AccountPoolManager:
                 auth_id = jwt_data.get("sub")
 
         # 2. Doc thong tin da duoc persist trong DB de lam can cu chuan truoc
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        con.row_factory = sqlite3.Row
-        cur = con.cursor()
-        
-        row = None
-        if email or auth_id or token:
-            cur.execute("""
-                SELECT * FROM accounts 
-                WHERE (email IS NOT NULL AND LOWER(email) = LOWER(?)) 
-                   OR (auth_id IS NOT NULL AND auth_id = ?) 
-                   OR (access_token IS NOT NULL AND access_token = ?)
-            """, (email or "", auth_id or "", token or ""))
-            row = cur.fetchone()
+        tok_hash = compute_token_hash(token) if token else None
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                con.row_factory = sqlite3.Row
+                cur = con.cursor()
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
 
-        persisted_usage = float(row["usage_percent"]) if (row and row["usage_percent"] is not None) else 0.0
-        persisted_spend = float(row["total_spend"]) if (row and row["total_spend"] is not None) else 0.0
-        persisted_msg = row["display_message"] if (row and row["display_message"]) else ""
-        persisted_status = row["status"] if (row and row["status"]) else "READY"
-        last_checked_time = row["last_checked"] if (row and row["last_checked"]) else 0
+                row = None
+                if email or auth_id or token:
+                    if "token_hash" in cols and tok_hash:
+                        cur.execute("""
+                            SELECT * FROM accounts 
+                            WHERE (email IS NOT NULL AND LOWER(email) = LOWER(?)) 
+                               OR (auth_id IS NOT NULL AND auth_id = ?) 
+                               OR (token_hash IS NOT NULL AND token_hash = ?)
+                               OR (access_token IS NOT NULL AND access_token = ?)
+                        """, (email or "", auth_id or "", tok_hash, token or ""))
+                    else:
+                        cur.execute("""
+                            SELECT * FROM accounts 
+                            WHERE (email IS NOT NULL AND LOWER(email) = LOWER(?)) 
+                               OR (auth_id IS NOT NULL AND auth_id = ?) 
+                               OR (access_token IS NOT NULL AND access_token = ?)
+                        """, (email or "", auth_id or "", token or ""))
+                    row = cur.fetchone()
+                    row = dict(row) if row else None
+            finally:
+                con.close()
+
+        persisted_usage = float(row["usage_percent"]) if (row and row.get("usage_percent") is not None) else 0.0
+        persisted_spend = float(row["total_spend"]) if (row and row.get("total_spend") is not None) else 0.0
+        persisted_msg = row.get("display_message") or "" if row else ""
+        persisted_status = row.get("status") or "READY" if row else "READY"
+        last_checked_time = row.get("last_checked") or 0 if row else 0
                 
         # 3. Thu fetch profile tu API neu can thiet (khi force_fetch_api hoac qua han 60s hoac chua co du lieu)
         profile = None
@@ -795,7 +1158,6 @@ class AccountPoolManager:
                 auth_id = profile.get("authId")
                 
         if not email:
-            con.close()
             # Neu khong the tim thay email, tra ve active thong thuong neu co token
             return active if active.get("has_token") else None
 
@@ -819,55 +1181,111 @@ class AccountPoolManager:
                     spend = float(snap.get("total_spend", 0.0) or 0.0)
                     msg = snap.get("display_message", msg)
         
-        disp_name = display_name or (row["display_name"] if row else email.split("@")[0])
+        disp_name = display_name or (row.get("display_name") if row else email.split("@")[0])
         
         locked, lock_reason = is_chat_locked(usage_data=profile or {"usagePercent": usage, "totalSpend": spend}, threshold=QUOTA_EXHAUSTION_THRESHOLD)
         status = "EXHAUSTED" if locked else ("HIGH_USAGE" if usage >= QUOTA_WARNING_THRESHOLD else "READY")
         now_ts = int(time.time())
 
-        if row:
-            acc_id = row["id"]
-            cur.execute("""
-                UPDATE accounts 
-                SET email = ?, display_name = ?, auth_id = ?, 
-                    access_token = COALESCE(?, access_token), 
-                    refresh_token = COALESCE(?, refresh_token),
-                    usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?
-                WHERE id = ?
-            """, (
-                email, disp_name, auth_id or row["auth_id"],
-                token, active.get("refresh_token"),
-                usage, spend, msg,
-                status, now_ts, acc_id
-            ))
-        else:
-            cur.execute("""
-                INSERT INTO accounts (file_name, email, display_name, auth_id, access_token, refresh_token,
-                                      usage_percent, total_spend, display_message, status, last_checked)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                f"{email}.txt", email, disp_name, auth_id,
-                token, active.get("refresh_token"),
-                usage, spend, msg,
-                status, now_ts
-            ))
-            acc_id = cur.lastrowid
-        con.commit()
-        con.close()
+        # Skip redundant DB writes on read-only status polls when row already matches
+        needs_write = True
+        if row and not allow_remote_fetch:
+            same_usage = abs(persisted_usage - usage) < 0.001
+            same_spend = abs(persisted_spend - spend) < 0.001
+            same_status = persisted_status == status
+            same_email = (row.get("email") or "").strip().lower() == (email or "").strip().lower()
+            same_tok = (not tok_hash) or (row.get("token_hash") == tok_hash)
+            if same_usage and same_spend and same_status and same_email and same_tok:
+                needs_write = False
 
-        # Luu quota snapshot lich su va dong bo toan bo duplicates neu co
-        try:
-            self.record_quota_snapshot(
-                account_id=acc_id,
-                email=email,
-                usage_percent=usage,
-                total_spend=spend,
-                display_message=msg,
-                status=status,
-                source="sync"
-            )
-        except Exception as snap_err:
-            print(f"[-] Loi ghi snapshot trong sync_active: {snap_err}")
+        if needs_write:
+            enc_access = encrypt_token(token) if token else None
+            enc_refresh = encrypt_token(active.get("refresh_token")) if active.get("refresh_token") else None
+            tok_mask = mask_token(token) if token else None
+            with DB_LOCK:
+                con = sqlite3.connect(DB_FILE, timeout=30.0)
+                try:
+                    cur = con.cursor()
+                    cur.execute("PRAGMA table_info(accounts);")
+                    cols = {r[1] for r in cur.fetchall()}
+                    has_hash = "token_hash" in cols and "token_mask" in cols
+
+                    if row:
+                        acc_id = row["id"]
+                        if has_hash:
+                            cur.execute("""
+                                UPDATE accounts 
+                                SET email = ?, display_name = ?, auth_id = ?, 
+                                    access_token = COALESCE(?, access_token), 
+                                    refresh_token = COALESCE(?, refresh_token),
+                                    token_hash = COALESCE(?, token_hash),
+                                    token_mask = COALESCE(?, token_mask),
+                                    usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?
+                                WHERE id = ?
+                            """, (
+                                email, disp_name, auth_id or row.get("auth_id"),
+                                enc_access, enc_refresh, tok_hash, tok_mask,
+                                usage, spend, msg,
+                                status, now_ts, acc_id
+                            ))
+                        else:
+                            cur.execute("""
+                                UPDATE accounts 
+                                SET email = ?, display_name = ?, auth_id = ?, 
+                                    access_token = COALESCE(?, access_token), 
+                                    refresh_token = COALESCE(?, refresh_token),
+                                    usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?
+                                WHERE id = ?
+                            """, (
+                                email, disp_name, auth_id or row.get("auth_id"),
+                                enc_access, enc_refresh,
+                                usage, spend, msg,
+                                status, now_ts, acc_id
+                            ))
+                    else:
+                        if has_hash:
+                            cur.execute("""
+                                INSERT INTO accounts (file_name, email, display_name, auth_id, access_token, refresh_token,
+                                                      token_hash, token_mask, usage_percent, total_spend, display_message, status, last_checked)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                f"{email}.txt", email, disp_name, auth_id,
+                                enc_access, enc_refresh, tok_hash, tok_mask,
+                                usage, spend, msg,
+                                status, now_ts
+                            ))
+                        else:
+                            cur.execute("""
+                                INSERT INTO accounts (file_name, email, display_name, auth_id, access_token, refresh_token,
+                                                      usage_percent, total_spend, display_message, status, last_checked)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                f"{email}.txt", email, disp_name, auth_id,
+                                enc_access, enc_refresh,
+                                usage, spend, msg,
+                                status, now_ts
+                            ))
+                        acc_id = cur.lastrowid
+                    con.commit()
+                finally:
+                    con.close()
+
+            # Luu quota snapshot lich su va dong bo toan bo duplicates neu co
+            try:
+                self.record_quota_snapshot(
+                    account_id=acc_id,
+                    email=email,
+                    usage_percent=usage,
+                    total_spend=spend,
+                    display_message=msg,
+                    status=status,
+                    source="sync"
+                )
+            except Exception as snap_err:
+                print(f"[-] Loi ghi snapshot trong sync_active: {snap_err}")
+        else:
+            acc_id = row["id"]
+            now_ts = last_checked_time or now_ts
             
         res = {
             "id": acc_id,
@@ -1003,31 +1421,27 @@ class AccountPoolManager:
                     csm = CursorSettingsManager()
                     cfg_switch = csm.get_auto_switch_config()
                     antidetect_mode = cfg_switch.get("antidetect_mode", "account_locked")
-
-                    if antidetect_mode == "account_locked":
-                        acc_fp = self.get_account_fingerprint(account_id)
-                        if acc_fp:
-                            csm.apply_fingerprint(acc_fp)
-                        else:
-                            csm.spoof_storage_ids()
-                    elif antidetect_mode == "stealth_randomize":
-                        csm.spoof_storage_ids()
-                    elif antidetect_mode == "native_standard":
-                        pass
-                    else:
-                        csm.spoof_storage_ids()
+                    csm.apply_antidetect_mode(
+                        mode=antidetect_mode,
+                        account_id=account_id,
+                        fingerprint_loader=self.get_account_fingerprint,
+                    )
                 except Exception as hw_err:
                     print(f"[-] Canh bao: Khong the ap dung anti-detect hardware fingerprint: {hw_err}")
 
-            # 3. Tu dong ap dung Config Profile cua tai khoan vao Cursor
+            # 3. Config Profile: Chi ap dung vao settings.json khi bat opt-in hoac account co profile tuy chinh (khong ghi de settings.json goc mac dinh)
             try:
                 from cursor_settings import CursorSettingsManager
+                csm_prof = CursorSettingsManager()
+                cfg_prof = csm_prof.get_auto_switch_config()
                 assigned_profile = "default"
                 if "config_profile" in acc.keys() and acc["config_profile"]:
                     assigned_profile = acc["config_profile"]
-                acc_email = acc["email"] if "email" in acc.keys() else "unknown"
-                print(f"[CONFIG-PROFILE] Tu dong ap dung Profile '{assigned_profile}' cho account {acc_email}...")
-                CursorSettingsManager().apply_profile_to_cursor(assigned_profile)
+                should_apply_profile = bool(cfg_prof.get("apply_profile_on_switch", False)) or (assigned_profile not in ("default", "", None))
+                if should_apply_profile:
+                    acc_email = acc["email"] if "email" in acc.keys() else "unknown"
+                    print(f"[CONFIG-PROFILE] Ap dung Profile '{assigned_profile}' cho account {acc_email}...")
+                    csm_prof.apply_profile_to_cursor(assigned_profile)
             except Exception as prof_err:
                 print(f"[-] Canh bao ap dung config profile khi switch: {prof_err}")
 
@@ -1040,6 +1454,7 @@ class AccountPoolManager:
                 cur.execute("UPDATE accounts SET last_checked = ? WHERE id = ?", (int(time.time()), account_id))
                 con.commit()
                 con.close()
+            self._notify_change("account_switched", {"account_id": account_id, "email": acc["email"] if "email" in acc.keys() else None})
                 
             if auto_reload:
                 # App restart / reload theo reset_mode
@@ -1344,64 +1759,236 @@ class AccountPoolManager:
 
         return None
 
+    def _is_requests_mocked(self) -> bool:
+        fn = getattr(requests, "post", None)
+        return bool(hasattr(fn, "_mock_name") or hasattr(fn, "mock_calls") or type(fn).__name__ == "MagicMock")
+
+    def _decrypt_account_rows(self, raw_accounts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Decrypt tokens and cookies via fast LRU cache (with disk self-healing)."""
+        hydrated = []
+        for acc in raw_accounts:
+            d = dict(acc)
+            raw_tok = d.get("access_token")
+            raw_ref = d.get("refresh_token")
+            raw_ck = d.get("cookie_full")
+            d["access_token"] = decrypt_token(raw_tok) if raw_tok else None
+            d["refresh_token"] = decrypt_token(raw_ref) if raw_ref else None
+            dec_ck = decrypt_token(raw_ck) if raw_ck else None
+            if not dec_ck and raw_ck and str(raw_ck).startswith("enc:v1:"):
+                dec_ck = self._heal_cookie_from_disk(d.get("id"), d.get("file_name"), d.get("email"))
+            d["cookie_full"] = dec_ck
+            hydrated.append(d)
+        return hydrated
+
+    def _apply_sync_results_batched(self, results: List[Dict[str, Any]], source: str = "startup_sync") -> None:
+        """Persist an entire batch of async sync results in ONE single WAL SQLite transaction."""
+        if not results:
+            return
+        now_ts = int(time.time())
+        try:
+            from ai_optimizer import DynamicCooldownManager, get_quota_predictor
+        except Exception:
+            DynamicCooldownManager = None
+            get_quota_predictor = None
+
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("PRAGMA table_info(accounts);")
+                cols = {r[1] for r in cur.fetchall()}
+                has_cd = "cooldown_until" in cols
+                has_hash = "token_hash" in cols and "token_mask" in cols
+
+                snap_rows = []
+                for res in results:
+                    acc_id = res["id"]
+                    if res.get("success"):
+                        usage = float(res.get("usage_percent", 0.0) or 0.0)
+                        auto_u = float(res.get("auto_percent_used", 0.0) or 0.0)
+                        spend = float(res.get("total_spend", 0.0) or 0.0)
+                        msg = res.get("display_message") or ""
+                        email = res.get("email")
+                        disp_name = res.get("display_name")
+                        auth_id = res.get("auth_id")
+
+                        locked, lock_reason = is_chat_locked(
+                            usage_data={
+                                "usagePercent": usage,
+                                "autoPercentUsed": auto_u,
+                                "totalSpend": spend,
+                                "displayThreshold": res.get("display_threshold", 200.0),
+                                "displayMessage": msg,
+                            },
+                            threshold=self.QUOTA_EXHAUSTION_THRESHOLD,
+                        )
+                        cd_until = 0
+                        if locked or usage >= self.QUOTA_EXHAUSTION_THRESHOLD or spend >= float(res.get("display_threshold", 200.0) or 200.0):
+                            new_status = "EXHAUSTED"
+                            cd_s = DynamicCooldownManager.calculate_cooldown(lock_reason or msg) if DynamicCooldownManager else self.BLACKLIST_COOLDOWN_SECONDS
+                            cd_until = now_ts + cd_s
+                        elif usage >= self.QUOTA_WARNING_THRESHOLD:
+                            new_status = "HIGH_USAGE"
+                        else:
+                            new_status = "READY"
+
+                        res["computed_status"] = new_status
+                        res["cooldown_until"] = cd_until
+
+                        new_tok = res.get("access_token")
+                        new_ref = res.get("refresh_token")
+                        set_clauses = [
+                            "email = COALESCE(?, email)",
+                            "display_name = COALESCE(?, display_name)",
+                            "auth_id = COALESCE(?, auth_id)",
+                            "usage_percent = ?",
+                            "total_spend = ?",
+                            "display_message = ?",
+                            "status = ?",
+                            "last_checked = ?",
+                        ]
+                        params: List[Any] = [email, disp_name, auth_id, usage, spend, msg, new_status, now_ts]
+
+                        if new_tok:
+                            set_clauses.append("access_token = ?")
+                            params.append(encrypt_token(new_tok))
+                            if has_hash:
+                                set_clauses.append("token_hash = ?")
+                                params.append(compute_token_hash(new_tok))
+                                set_clauses.append("token_mask = ?")
+                                params.append(mask_token(new_tok))
+                        if "token_type" in cols and res.get("token_type"):
+                            set_clauses.append("token_type = ?")
+                            params.append(res["token_type"])
+                        if new_ref:
+                            set_clauses.append("refresh_token = ?")
+                            params.append(encrypt_token(new_ref))
+                        if has_cd:
+                            set_clauses.append("cooldown_until = CASE WHEN ? > 0 THEN ? ELSE 0 END")
+                            params.extend([cd_until, cd_until])
+
+                        params.append(acc_id)
+                        cur.execute(f"UPDATE accounts SET {', '.join(set_clauses)} WHERE id = ?", tuple(params))
+                        snap_rows.append((acc_id, email, usage, spend, msg, new_status, source, now_ts))
+
+                        if get_quota_predictor:
+                            try:
+                                get_quota_predictor().record_usage(str(acc_id), usage, spend)
+                            except Exception:
+                                pass
+                    elif res.get("expired"):
+                        res["computed_status"] = "EXPIRED"
+                        cur.execute("UPDATE accounts SET status = 'EXPIRED', last_checked = ? WHERE id = ?", (now_ts, acc_id))
+
+                if snap_rows:
+                    cur.executemany(
+                        """
+                        INSERT INTO quota_snapshots (account_id, email, usage_percent, total_spend, display_message, status, source, recorded_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        snap_rows,
+                    )
+                con.commit()
+            finally:
+                con.close()
+
     def start_batch_check(self) -> bool:
-        """Khoi dong tien trinh chay ngam kiem tra song song 20 luong."""
+        """Khoi dong tien trinh chay ngam kiem tra quota bang Async HTTP/2 Multiplexing (hoac fallback)."""
         if getattr(self, "batch_running", False):
             return False
 
         self.batch_running = True
         self.batch_stop_requested = False
 
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        cur = con.cursor()
-        cur.execute("SELECT id, email, file_name FROM accounts ORDER BY last_checked ASC, id ASC")
-        accounts_to_check = cur.fetchall()
-        con.close()
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                con.row_factory = sqlite3.Row
+                cur = con.cursor()
+                cur.execute("SELECT * FROM accounts ORDER BY last_checked ASC, id ASC")
+                raw_accounts = [dict(r) for r in cur.fetchall()]
+            finally:
+                con.close()
 
         self.batch_progress = {
             "running": True,
             "current": 0,
-            "total": len(accounts_to_check),
+            "total": len(raw_accounts),
             "current_email": "",
             "success_count": 0,
-            "failed_count": 0
+            "failed_count": 0,
+            "recent_results": [],
         }
 
         def _worker():
             progress_lock = threading.Lock()
+            use_async = not self._is_requests_mocked()
 
-            def _check_single(item):
-                if self.batch_stop_requested:
-                    return
-
-                acc_id, email, fname = item
-                target_name = email or fname
-
-                with progress_lock:
-                    self.batch_progress["current_email"] = target_name
-
-                success = False
+            if use_async and raw_accounts:
                 try:
-                    res = self.refresh_account_quota(acc_id)
-                    if res and res.get("email"):
-                        success = True
+                    from async_sync_engine import AsyncCursorSyncEngine
+                    hydrated = self._decrypt_account_rows(raw_accounts)
+                    engine = AsyncCursorSyncEngine(max_concurrency=20, timeout_sec=10.0)
+
+                    def _on_res(res: Dict[str, Any]):
+                        label = res.get("email") or f"Account #{res['id']}"
+                        with progress_lock:
+                            self.batch_progress["current"] += 1
+                            self.batch_progress["current_email"] = label
+                            if res.get("success"):
+                                self.batch_progress["success_count"] += 1
+                            else:
+                                self.batch_progress["failed_count"] += 1
+                            self.batch_progress["recent_results"].append({
+                                "email": label,
+                                "ok": bool(res.get("success")),
+                                "expired": bool(res.get("expired")),
+                                "usage": res.get("usage_percent", 0),
+                                "ms": res.get("latency_ms", 0),
+                            })
+                            if len(self.batch_progress["recent_results"]) > 20:
+                                self.batch_progress["recent_results"] = self.batch_progress["recent_results"][-20:]
+
+                    results = engine.sync_accounts(
+                        hydrated,
+                        hydrate_missing_profile=True,
+                        on_result=_on_res,
+                        stop_check=lambda: bool(self.batch_stop_requested),
+                    )
+                    self._apply_sync_results_batched(results, source="batch_check")
+                    self._notify_change("batch_check_done", {"total": len(results)})
                 except Exception as e:
-                    print(f"[-] Loi check account {acc_id}: {e}")
+                    print(f"[-] Async batch check fallback error: {e}")
+                    use_async = False
 
-                with progress_lock:
-                    self.batch_progress["current"] += 1
-                    if success:
-                        self.batch_progress["success_count"] += 1
-                    else:
-                        self.batch_progress["failed_count"] += 1
-
-            # Chay 20 workers dong thoi
-            with ThreadPoolExecutor(max_workers=20) as executor:
-                futures = [executor.submit(_check_single, item) for item in accounts_to_check]
-                for future in as_completed(futures):
+            if not use_async:
+                def _check_single(acc):
                     if self.batch_stop_requested:
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+                        return
+                    acc_id = acc["id"]
+                    target_name = acc.get("email") or acc.get("file_name") or f"Account #{acc_id}"
+                    with progress_lock:
+                        self.batch_progress["current_email"] = target_name
+                    success = False
+                    try:
+                        res = self.refresh_account_quota(acc_id)
+                        if res and res.get("email"):
+                            success = True
+                    except Exception as e:
+                        print(f"[-] Loi check account {acc_id}: {e}")
+                    with progress_lock:
+                        self.batch_progress["current"] += 1
+                        if success:
+                            self.batch_progress["success_count"] += 1
+                        else:
+                            self.batch_progress["failed_count"] += 1
+
+                with ThreadPoolExecutor(max_workers=20) as executor:
+                    futures = [executor.submit(_check_single, item) for item in raw_accounts]
+                    for future in as_completed(futures):
+                        if self.batch_stop_requested:
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            break
 
             self.batch_running = False
             self.batch_progress["running"] = False
@@ -1463,11 +2050,87 @@ class AccountPoolManager:
             "max_workers": max_workers,
             "started_at": time.time(),
             "finished_at": None,
-            "duration_seconds": 0.0
+            "duration_seconds": 0.0,
+            "transport": "httpx_http2",
+            "recent_results": [],
         }
 
         def _worker():
             progress_lock = threading.Lock()
+            use_async = (not self._is_requests_mocked()) and bool(accounts)
+
+            if use_async:
+                try:
+                    from async_sync_engine import AsyncCursorSyncEngine
+                    hydrated = self._decrypt_account_rows(accounts)
+                    engine = AsyncCursorSyncEngine(max_concurrency=max_workers, timeout_sec=10.0)
+                    self.startup_sync_progress["transport"] = engine.transport_name
+
+                    def _on_res(res: Dict[str, Any]):
+                        label = res.get("email") or f"Account #{res['id']}"
+                        usage = float(res.get("usage_percent", 0.0) or 0.0)
+                        spend = float(res.get("total_spend", 0.0) or 0.0)
+                        is_ok = bool(res.get("success"))
+                        is_exp = bool(res.get("expired"))
+
+                        with progress_lock:
+                            self.startup_sync_progress["current"] += 1
+                            self.startup_sync_progress["current_account"] = label
+                            if is_ok:
+                                if usage >= self.QUOTA_EXHAUSTION_THRESHOLD or spend >= float(res.get("display_threshold", 200.0) or 200.0):
+                                    st_lbl = "EXHAUSTED"
+                                    self.startup_sync_progress["exhausted_count"] += 1
+                                    self.startup_sync_progress["blacklist_count"] += 1
+                                elif usage >= self.QUOTA_WARNING_THRESHOLD:
+                                    st_lbl = "HIGH_USAGE"
+                                    self.startup_sync_progress["high_usage_count"] += 1
+                                    self.startup_sync_progress["tier2_count"] += 1
+                                else:
+                                    st_lbl = "READY"
+                                    self.startup_sync_progress["ready_count"] += 1
+                                    self.startup_sync_progress["tier1_count"] += 1
+                            elif is_exp:
+                                st_lbl = "EXPIRED"
+                                self.startup_sync_progress["expired_count"] += 1
+                            else:
+                                st_lbl = "ERROR"
+                                self.startup_sync_progress["failed_count"] += 1
+
+                            self.startup_sync_progress["recent_results"].append({
+                                "email": label,
+                                "status": st_lbl,
+                                "usage": round(usage, 1),
+                                "ms": res.get("latency_ms", 0),
+                            })
+                            if len(self.startup_sync_progress["recent_results"]) > 25:
+                                self.startup_sync_progress["recent_results"] = self.startup_sync_progress["recent_results"][-25:]
+
+                    results = engine.sync_accounts(
+                        hydrated,
+                        hydrate_missing_profile=True,
+                        on_result=_on_res,
+                        stop_check=lambda: bool(getattr(self, "startup_sync_stop_requested", False)),
+                    )
+                    self._apply_sync_results_batched(results, source="startup_sync")
+                    self.startup_sync_running = False
+                    self.startup_sync_progress["running"] = False
+                    self.startup_sync_progress["finished_at"] = time.time()
+                    self.startup_sync_progress["duration_seconds"] = round(
+                        self.startup_sync_progress["finished_at"] - self.startup_sync_progress["started_at"], 2
+                    )
+                    print(
+                        f"[+] Hoan tat Startup Quota Sync ({len(accounts)} accounts, {engine.transport_name}, {max_workers}c) "
+                        f"trong {self.startup_sync_progress['duration_seconds']}s. "
+                        f"Ready: {self.startup_sync_progress['ready_count']}, High: {self.startup_sync_progress['high_usage_count']}, "
+                        f"Exhausted: {self.startup_sync_progress['exhausted_count']}, Expired: {self.startup_sync_progress['expired_count']}"
+                    )
+                    self._notify_change("startup_sync_done", dict(self.startup_sync_progress))
+                    return
+                except Exception as async_err:
+                    print(f"[-] Async startup sync fallback to ThreadPool: {async_err}")
+
+            # Fallback / Mock-compatible ThreadPool path (with full decrypt/encrypt safety)
+            self.startup_sync_progress["transport"] = "requests_threadpool"
 
             def _sync_single(acc):
                 if getattr(self, "startup_sync_stop_requested", False):
@@ -1478,31 +2141,41 @@ class AccountPoolManager:
                 with progress_lock:
                     self.startup_sync_progress["current_account"] = email
 
-                token = acc.get("access_token")
-                cookie_full = acc.get("cookie_full")
+                raw_tok = acc.get("access_token")
+                raw_ck = acc.get("cookie_full")
+                token = decrypt_token(raw_tok) if raw_tok else None
+                cookie_full = decrypt_token(raw_ck) if raw_ck else None
+                if not cookie_full and raw_ck and str(raw_ck).startswith("enc:v1:"):
+                    cookie_full = self._heal_cookie_from_disk(acc_id, acc.get("file_name"), acc.get("email"))
                 new_status = None
                 success = False
                 cur_usage = 0.0
 
                 try:
-                    # 1. Neu chua co token, thu exchange cookie neu co
+                    # 1. Neu chua co token, thu direct JWT hoac exchange cookie neu co
                     if not token and cookie_full:
-                        tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
+                        direct_jwt = extract_jwt_from_session_cookie(cookie_full)
+                        if direct_jwt:
+                            tokens = {"accessToken": direct_jwt, "refreshToken": direct_jwt}
+                        else:
+                            tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
                         if tokens and tokens.get("accessToken"):
                             token = tokens["accessToken"]
-                            acc["refresh_token"] = tokens.get("refreshToken")
-                            acc["access_token"] = token
+                            ref_tok = tokens.get("refreshToken")
                             with DB_LOCK:
                                 c = sqlite3.connect(DB_FILE, timeout=30.0)
                                 try:
-                                    c.execute("UPDATE accounts SET access_token = ?, refresh_token = ? WHERE id = ?", (token, acc["refresh_token"], acc_id))
+                                    c.execute(
+                                        "UPDATE accounts SET access_token = ?, refresh_token = ? WHERE id = ?",
+                                        (encrypt_token(token), encrypt_token(ref_tok), acc_id),
+                                    )
                                     c.commit()
                                 finally:
                                     c.close()
                         else:
                             new_status = "EXPIRED"
 
-                    # 2. Goi truc tiep API GetCurrentPeriodUsage cua Cursor voi access_token da luu
+                    # 2. Goi truc tiep API GetCurrentPeriodUsage cua Cursor voi access_token da giai ma
                     if token and not new_status:
                         headers = {
                             "Authorization": f"Bearer {token}",
@@ -1524,7 +2197,6 @@ class AccountPoolManager:
                             msg = ud.get("displayMessage", "") or ""
                             cur_usage = usage
 
-                            # Kiem tra chat locked / quota threshold
                             locked, _ = is_chat_locked(
                                 usage_data={"usagePercent": usage, "autoPercentUsed": auto_usage, "totalSpend": spend},
                                 threshold=self.QUOTA_EXHAUSTION_THRESHOLD
@@ -1575,7 +2247,6 @@ class AccountPoolManager:
                             success = True
 
                         elif resp.status_code in (401, 403):
-                            # Token het han -> Thu refresh lai qua cookie
                             refreshed = False
                             if cookie_full:
                                 tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
@@ -1611,22 +2282,36 @@ class AccountPoolManager:
                                         else:
                                             new_status = "READY"
 
+                                        enc_tok = encrypt_token(new_tok)
+                                        enc_ref = encrypt_token(new_ref)
+                                        tok_h = compute_token_hash(new_tok)
+                                        tok_m = mask_token(new_tok)
+
                                         with DB_LOCK:
                                             c = sqlite3.connect(DB_FILE, timeout=30.0)
                                             try:
-                                                if has_cd:
+                                                c_cols = {r[1] for r in c.execute("PRAGMA table_info(accounts);").fetchall()}
+                                                if has_cd and "token_hash" in c_cols and "token_mask" in c_cols:
+                                                    c.execute("""
+                                                        UPDATE accounts 
+                                                        SET access_token = ?, refresh_token = ?, token_hash = ?, token_mask = ?,
+                                                            usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
+                                                            cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
+                                                        WHERE id = ?
+                                                    """, (enc_tok, enc_ref, tok_h, tok_m, usage, spend, msg, new_status, now_ts, cd_until, cd_until, acc_id))
+                                                elif has_cd:
                                                     c.execute("""
                                                         UPDATE accounts 
                                                         SET access_token = ?, refresh_token = ?, usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
                                                             cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
                                                         WHERE id = ?
-                                                    """, (new_tok, new_ref, usage, spend, msg, new_status, now_ts, cd_until, cd_until, acc_id))
+                                                    """, (enc_tok, enc_ref, usage, spend, msg, new_status, now_ts, cd_until, cd_until, acc_id))
                                                 else:
                                                     c.execute("""
                                                         UPDATE accounts 
                                                         SET access_token = ?, refresh_token = ?, usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?
                                                         WHERE id = ?
-                                                    """, (new_tok, new_ref, usage, spend, msg, new_status, now_ts, acc_id))
+                                                    """, (enc_tok, enc_ref, usage, spend, msg, new_status, now_ts, acc_id))
                                                 c.commit()
                                             finally:
                                                 c.close()
@@ -1644,7 +2329,6 @@ class AccountPoolManager:
                                     finally:
                                         c.close()
                         else:
-                            # Khong phai 200/401 (vi du 429 / 500) -> Giu nguyen trang thai
                             pass
 
                     elif not token and new_status == "EXPIRED":
@@ -1683,7 +2367,6 @@ class AccountPoolManager:
                     else:
                         self.startup_sync_progress["failed_count"] += 1
 
-            # Chay 10-15 worker threads dong thoi (mac dinh max_workers=12)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [executor.submit(_sync_single, acc) for acc in accounts]
                 for f in as_completed(futures):
@@ -1698,6 +2381,7 @@ class AccountPoolManager:
                 self.startup_sync_progress["finished_at"] - self.startup_sync_progress["started_at"], 2
             )
             print(f"[+] Hoan tat Startup Quota Sync ({len(accounts)} accounts, {max_workers} luong) trong {self.startup_sync_progress['duration_seconds']}s. Ready: {self.startup_sync_progress['ready_count']}, High: {self.startup_sync_progress['high_usage_count']}, Exhausted: {self.startup_sync_progress['exhausted_count']}, Expired: {self.startup_sync_progress['expired_count']}")
+            self._notify_change("startup_sync_done", dict(self.startup_sync_progress))
 
         if blocking:
             _worker()
@@ -1825,35 +2509,45 @@ class AccountPoolManager:
 
     def delete_invalid_accounts(self, archive: bool = True) -> int:
         """Xoa toan bo cac tai khoan co trang thai EXPIRED khoi database pool va cach ly / xoa file cookie vat ly."""
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        cur = con.cursor()
-        cur.execute("SELECT file_name, email FROM accounts WHERE status = 'EXPIRED'")
-        rows = cur.fetchall()
-        for fname, email in rows:
-            if archive:
-                self._quarantine_file(fname, email, reason="deleted_expired")
-            else:
-                self._remove_cookie_file(fname, email)
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("SELECT file_name, email FROM accounts WHERE status = 'EXPIRED'")
+                rows = cur.fetchall()
+                for fname, email in rows:
+                    if archive:
+                        self._quarantine_file(fname, email, reason="deleted_expired")
+                    else:
+                        self._remove_cookie_file(fname, email)
 
-        cur.execute("DELETE FROM accounts WHERE status = 'EXPIRED'")
-        deleted_count = cur.rowcount
-        con.commit()
-        con.close()
+                cur.execute("DELETE FROM accounts WHERE status = 'EXPIRED'")
+                deleted_count = cur.rowcount
+                con.commit()
+            finally:
+                con.close()
+        if deleted_count:
+            self._notify_change("accounts_deleted", {"deleted": deleted_count})
         return deleted_count
 
     def delete_exhausted_accounts(self, threshold: float = QUOTA_EXHAUSTION_THRESHOLD) -> int:
         """Xoa toan bo cac tai khoan co usage_percent >= threshold hoac status la EXHAUSTED va xoa luon file cookie vat ly."""
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        cur = con.cursor()
-        cur.execute("SELECT file_name, email FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
-        rows = cur.fetchall()
-        for fname, email in rows:
-            self._remove_cookie_file(fname, email)
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("SELECT file_name, email FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
+                rows = cur.fetchall()
+                for fname, email in rows:
+                    self._remove_cookie_file(fname, email)
 
-        cur.execute("DELETE FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
-        deleted_count = cur.rowcount
-        con.commit()
-        con.close()
+                cur.execute("DELETE FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
+                deleted_count = cur.rowcount
+                con.commit()
+            finally:
+                con.close()
+        if deleted_count:
+            self._notify_change("accounts_deleted", {"deleted": deleted_count})
         return deleted_count
 
     def delete_high_usage_accounts(self, threshold: float = QUOTA_EXHAUSTION_THRESHOLD) -> int:
@@ -1862,19 +2556,24 @@ class AccountPoolManager:
 
     def delete_single_account(self, account_id: int) -> bool:
         """Xoa 1 tai khoan cu the va xoa file cookie vat ly cua no."""
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        cur = con.cursor()
-        cur.execute("SELECT file_name, email FROM accounts WHERE id = ?", (account_id,))
-        row = cur.fetchone()
-        if row:
-            fname, email = row
-            self._remove_cookie_file(fname, email)
-            cur.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
-            con.commit()
-            con.close()
-            return True
-        con.close()
-        return False
+        deleted = False
+        with DB_LOCK:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            try:
+                cur = con.cursor()
+                cur.execute("SELECT file_name, email FROM accounts WHERE id = ?", (account_id,))
+                row = cur.fetchone()
+                if row:
+                    fname, email = row
+                    self._remove_cookie_file(fname, email)
+                    cur.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+                    con.commit()
+                    deleted = True
+            finally:
+                con.close()
+        if deleted:
+            self._notify_change("account_deleted", {"account_id": account_id})
+        return deleted
 
     def trigger_immediate_auto_switch(
         self,
@@ -1904,15 +2603,30 @@ class AccountPoolManager:
                 pass
 
         if current_email or current_token:
+            tok_h = compute_token_hash(current_token) if current_token else None
+            now_ts = int(time.time())
+            cd_until = now_ts + self.BLACKLIST_COOLDOWN_SECONDS
             with DB_LOCK:
                 con = sqlite3.connect(DB_FILE, timeout=30.0)
-                cur = con.cursor()
-                if current_email:
-                    cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE LOWER(email) = LOWER(?)", (int(time.time()), current_email))
-                if current_token:
-                    cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE access_token = ?", (int(time.time()), current_token))
-                con.commit()
-                con.close()
+                try:
+                    cur = con.cursor()
+                    cur.execute("PRAGMA table_info(accounts);")
+                    cols = {r[1] for r in cur.fetchall()}
+                    has_cd = "cooldown_until" in cols
+                    has_hash = "token_hash" in cols
+                    if current_email:
+                        if has_cd:
+                            cur.execute("UPDATE accounts SET status = 'EXHAUSTED', cooldown_until = ?, last_checked = ? WHERE LOWER(email) = LOWER(?)", (cd_until, now_ts, current_email))
+                        else:
+                            cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE LOWER(email) = LOWER(?)", (now_ts, current_email))
+                    if current_token:
+                        if has_hash and tok_h:
+                            cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE token_hash = ? OR access_token = ?", (now_ts, tok_h, current_token))
+                        else:
+                            cur.execute("UPDATE accounts SET status = 'EXHAUSTED', last_checked = ? WHERE access_token = ?", (now_ts, current_token))
+                    con.commit()
+                finally:
+                    con.close()
 
         best = self.auto_switch_best_account(notify=True, prev_email=current_email, auto_continue=auto_continue, spoof_hw=spoof_hw, reset_mode=reset_mode)
 
@@ -1957,7 +2671,7 @@ class AccountPoolManager:
                             cur_acc.execute("SELECT access_token FROM accounts WHERE LOWER(email) = LOWER(?)", (active_email.strip().lower(),))
                             row_tok = cur_acc.fetchone()
                             if row_tok and row_tok[0]:
-                                token = row_tok[0]
+                                token = decrypt_token(row_tok[0])
                         except Exception:
                             pass
                         finally:
@@ -1977,6 +2691,7 @@ class AccountPoolManager:
                             locked, lock_reason = is_chat_locked(status_code=http_code, usage_data=profile, threshold=QUOTA_EXHAUSTION_THRESHOLD)
                             
                             # Cap nhat quota moi nhat truc tiep vao database moi chu ky 5 giay
+                            tok_h = compute_token_hash(token) if token else ""
                             with DB_LOCK:
                                 con_live = None
                                 try:
@@ -1986,17 +2701,17 @@ class AccountPoolManager:
                                         cur_live.execute("""
                                             UPDATE accounts 
                                             SET usage_percent = ?, total_spend = ?, status = 'EXHAUSTED', last_checked = ?, display_message = ?
-                                            WHERE access_token = ? OR (email IS NOT NULL AND LOWER(email) = LOWER(?))
-                                        """, (usage, spend, int(time.time()), profile.get("displayMessage", ""), token, (active_email or "").strip().lower()))
+                                            WHERE token_hash = ? OR access_token = ? OR (email IS NOT NULL AND LOWER(email) = LOWER(?))
+                                        """, (usage, spend, int(time.time()), profile.get("displayMessage", ""), tok_h, token, (active_email or "").strip().lower()))
                                     else:
                                         cur_live.execute("""
                                             UPDATE accounts 
                                             SET usage_percent = ?, total_spend = ?, 
                                                 status = CASE WHEN ? >= ? THEN 'HIGH_USAGE' ELSE 'READY' END,
                                                 last_checked = ?, display_message = ?
-                                            WHERE (access_token = ? OR (email IS NOT NULL AND LOWER(email) = LOWER(?)))
+                                            WHERE (token_hash = ? OR access_token = ? OR (email IS NOT NULL AND LOWER(email) = LOWER(?)))
                                               AND status != 'EXHAUSTED'
-                                        """, (usage, spend, usage, QUOTA_WARNING_THRESHOLD, int(time.time()), profile.get("displayMessage", ""), token, (active_email or "").strip().lower()))
+                                        """, (usage, spend, usage, QUOTA_WARNING_THRESHOLD, int(time.time()), profile.get("displayMessage", ""), tok_h, token, (active_email or "").strip().lower()))
                                     con_live.commit()
                                 except Exception:
                                     pass

@@ -5,5 +5,6 @@
     "auto_resend_action": "manual",
     "continue_prompt": "Tiếp tục",
     "target_mode": "composer",
-    "antidetect_mode": "account_locked"
+    "antidetect_mode": "account_locked",
+    "apply_profile_on_switch": false
 }

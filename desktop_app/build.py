@@ -46,7 +46,7 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
             return False
 
     templates_dir = os.path.join(ROOT_DIR, 'templates')
-    cookies_dir = os.path.join(ROOT_DIR, 'Cookies')
+    static_dir = os.path.join(ROOT_DIR, 'static')
     src_dir = os.path.join(ROOT_DIR, 'src')
 
     cmd = [
@@ -70,14 +70,16 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
 
     if os.path.exists(templates_dir):
         cmd.extend(['--add-data', f'{templates_dir};templates'])
-    if os.path.exists(cookies_dir):
-        cmd.extend(['--add-data', f'{cookies_dir};Cookies'])
+    if os.path.exists(static_dir):
+        cmd.extend(['--add-data', f'{static_dir};static'])
     if os.path.exists(src_dir):
         cmd.extend(['--add-data', f'{src_dir};src'])
 
     hidden_imports = [
         'flask', 'jinja2', 'requests', 'psutil', 'sqlite3', 'ctypes', 'webview',
-        'aiohttp', 'aiohttp.web',
+        'aiohttp', 'aiohttp.web', 'httpx', 'httpcore', 'h2',
+        'app_paths', 'jsonc_utils', 'async_sync_engine', 'token_cipher',
+        'cursor_checksum', 'cursor_storage', 'pkce_auth', 'windows_notifier',
         'ai_optimizer', 'updater', 'cursor_settings', 'account_pool',
         'cursor_reloader', 'rotating_proxy', 'token_pool', 'smart_task_filter',
         'chat_lock_detector'
@@ -111,14 +113,20 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
         print('=' * 65)
 
         manifest = {
-            'version': '2.5.1',
-            'release_date': '2026-09-06',
+            'version': '3.0.0',
+            'release_date': '2026-11-24',
             'channel': 'stable',
             'download_url': 'CursorRouter.exe',
             'sha256': sha256_hash,
             'mandatory': False,
             'min_version': '2.0.0',
-            'changelog': '1. Top-right notifications for offline Cursor & startup quota sync.\n2. Clean detail table view with 7-day cooldown auto-pushed to bottom.\n3. Safe manual prompt continuation default.\n4. Clean environment compatibility with root requirements.txt.\n5. Sub-second CLI startup with lazy server imports.'
+            'changelog': (
+                '1. Async HTTP/2 Multiplexed Sync Engine (~20x faster quota & profile ingestion).\n'
+                '2. Dual-Path CSRF-Aware PKCE + Instant Session JWT Extraction + Multi-Format Cookie Parser (Netscape/JSON/Header/Batch Paste).\n'
+                '3. LRU Token Decrypt Cache (>100,000x faster dashboard reads) + Blind Index SQLite lookups + Portable --onefile data persistence.\n'
+                '4. Offline-first Modular CursorRouter v3.0 Cockpit UI with Sidebar Rail, Quick Paste Workbench, Card/Table Toggle, Email Masking, and Live Proxy Telemetry.\n'
+                '5. String-aware JSONC settings protection, unified Anti-Detect enforcement, and SSE real-time push.'
+            )
         }
         manifest_path = os.path.join(DIST_DIR, 'manifest.json')
         with open(manifest_path, 'w', encoding='utf-8') as f:

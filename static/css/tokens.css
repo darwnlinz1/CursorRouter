@@ -1,0 +1,58 @@
+/* CursorRouter v3.0 — Offline-First Design Tokens (Cursor / Linear Dark Craft) */
+:root {
+  --bg-canvas: #0a0a0a;
+  --bg-rail: #0f0f10;
+  --bg-header: rgba(12, 12, 13, 0.92);
+  --bg-surface: #141415;
+  --bg-elevated: #1a1a1c;
+  --bg-input: #101012;
+  --bg-hover: #1f1f22;
+
+  --border-subtle: #222225;
+  --border-default: #29292d;
+  --border-strong: #3a3a40;
+
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-inverse: #09090b;
+
+  --accent-primary: #f4f4f5;
+  --accent-primary-hover: #ffffff;
+
+  /* Strictly semantic accents */
+  --emerald: #10b981;
+  --emerald-soft: rgba(16, 185, 129, 0.12);
+  --emerald-border: rgba(16, 185, 129, 0.30);
+  --emerald-text: #34d399;
+
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, 0.12);
+  --amber-border: rgba(245, 158, 11, 0.30);
+  --amber-text: #fbbf24;
+
+  --rose: #f43f5e;
+  --rose-soft: rgba(244, 63, 94, 0.12);
+  --rose-border: rgba(244, 63, 94, 0.30);
+  --rose-text: #fb7185;
+
+  --blue: #3b82f6;
+  --blue-soft: rgba(59, 130, 246, 0.12);
+  --blue-border: rgba(59, 130, 246, 0.30);
+  --blue-text: #60a5fa;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.42);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.85);
+  --shadow-toast: 0 12px 32px rgba(0, 0, 0, 0.65);
+
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "SFMono-Regular", Menlo, monospace;
+
+  --rail-width: 232px;
+  --header-height: 54px;
+}

@@ -49,7 +49,7 @@ def build_executable(onefile: bool = True, windowed: bool = False):
             return False
 
     templates_dir = os.path.join(ROOT_DIR, "templates")
-    cookies_dir = os.path.join(ROOT_DIR, "Cookies")
+    static_dir = os.path.join(ROOT_DIR, "static")
     src_dir = os.path.join(ROOT_DIR, "src")
 
     # Construct PyInstaller command line
@@ -70,11 +70,11 @@ def build_executable(onefile: bool = True, windowed: bool = False):
     else:
         cmd.append("--console")
 
-    # Add data directories (Windows uses semicolon separator)
+    # Add read-only bundled directories (never bundle user Cookies/ into binary)
     if os.path.exists(templates_dir):
         cmd.extend(["--add-data", f"{templates_dir};templates"])
-    if os.path.exists(cookies_dir):
-        cmd.extend(["--add-data", f"{cookies_dir};Cookies"])
+    if os.path.exists(static_dir):
+        cmd.extend(["--add-data", f"{static_dir};static"])
     if os.path.exists(src_dir):
         cmd.extend(["--add-data", f"{src_dir};src"])
 
@@ -89,6 +89,17 @@ def build_executable(onefile: bool = True, windowed: bool = False):
         "webview",
         "aiohttp",
         "aiohttp.web",
+        "httpx",
+        "httpcore",
+        "h2",
+        "app_paths",
+        "jsonc_utils",
+        "async_sync_engine",
+        "token_cipher",
+        "cursor_checksum",
+        "cursor_storage",
+        "pkce_auth",
+        "windows_notifier",
         "ai_optimizer",
         "updater",
         "cursor_settings",
@@ -131,14 +142,14 @@ def build_executable(onefile: bool = True, windowed: bool = False):
 
         # Generate update manifest for distribution
         manifest = {
-            "version": "2.4.0",
-            "release_date": "2026-09-06",
+            "version": "3.0.0",
+            "release_date": "2026-11-24",
             "channel": "stable",
             "download_url": f"CursorManager.exe",
             "sha256": sha256_hash,
             "mandatory": False,
             "min_version": "2.0.0",
-            "changelog": "1. Two-tier quota pool (<50% Tier 1, 50-99% Tier 2).\n2. Authentic 8-category Cursor settings taxonomy.\n3. Zero stuck Alt/modifier keys guarantee.\n4. Native Edge WebView2 container.\n5. Windows auto-updater with SHA-256 verification."
+            "changelog": "1. Async HTTP/2 Multiplexed Sync Engine (~20x faster).\n2. LRU Decrypt Cache & Portable Data Persistence.\n3. Offline-First Modular Cockpit UI v3.0.\n4. Quick Paste Multi-Format Cookie Ingestion.\n5. Unified Anti-Detect & Live Proxy Telemetry."
         }
         manifest_path = os.path.join(DIST_DIR, "manifest.json")
         with open(manifest_path, "w", encoding="utf-8") as f:

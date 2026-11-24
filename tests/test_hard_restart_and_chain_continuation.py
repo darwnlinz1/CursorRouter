@@ -124,32 +124,42 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
             call_order.append("relaunch")
             return True
 
-        # Grab any existing account from DB
+        # Seed a dedicated account with a valid token so test never depends on ambient DB rows
+        from token_cipher import encrypt_token
         con = sqlite3.connect(DB_FILE)
         cur = con.cursor()
-        cur.execute("SELECT id FROM accounts LIMIT 1")
-        row = cur.fetchone()
+        cur.execute("DELETE FROM accounts WHERE email = 'hard_restart_order@example.com'")
+        cur.execute("""
+            INSERT INTO accounts (file_name, email, display_name, access_token, refresh_token, usage_percent, total_spend, status)
+            VALUES ('hard_restart_order.txt', 'hard_restart_order@example.com', 'Hard Restart Tester', ?, ?, 5.0, 10.0, 'READY')
+        """, (encrypt_token("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImhhcmRfcmVzdGFydF9vcmRlckBleGFtcGxlLmNvbSJ9.sig"), encrypt_token("ref_hard_restart")))
+        acc_id = cur.lastrowid
+        con.commit()
         con.close()
-        self.assertIsNotNone(row, "Need at least one account in DB for test")
-        acc_id = row[0]
 
-        with patch("cursor_reloader.is_cursor_running", return_value=True):
-            with patch("cursor_reloader.terminate_cursor", side_effect=mock_terminate):
-                with patch.object(self.pool.storage, "inject_full_profile", side_effect=mock_inject):
-                    with patch("cursor_settings.CursorSettingsManager.spoof_storage_ids", side_effect=mock_spoof):
-                        with patch("cursor_reloader.launch_cursor_app", side_effect=mock_launch):
-                            with patch.object(self.pool.storage, "get_active_account", return_value={"email": "test@example.com", "has_token": True}):
-                                ok = self.pool.switch_to_account(acc_id, auto_reload=True, reset_mode="hard_restart", verify=False)
-                                self.assertTrue(ok)
-                                # Strict ordering: terminate MUST precede inject_profile, which MUST precede relaunch
-                                self.assertIn("terminate", call_order)
-                                self.assertIn("inject_profile", call_order)
-                                self.assertIn("relaunch", call_order)
-                                term_idx = call_order.index("terminate")
-                                inj_idx = call_order.index("inject_profile")
-                                relaunch_idx = call_order.index("relaunch")
-                                self.assertLess(term_idx, inj_idx, "terminate must happen before inject_profile")
-                                self.assertLess(inj_idx, relaunch_idx, "inject_profile must happen before relaunch")
+        try:
+            with patch("cursor_reloader.is_cursor_running", return_value=True):
+                with patch("cursor_reloader.terminate_cursor", side_effect=mock_terminate):
+                    with patch.object(self.pool.storage, "inject_full_profile", side_effect=mock_inject):
+                        with patch("cursor_settings.CursorSettingsManager.spoof_storage_ids", side_effect=mock_spoof):
+                            with patch("cursor_reloader.launch_cursor_app", side_effect=mock_launch):
+                                with patch.object(self.pool.storage, "get_active_account", return_value={"email": "test@example.com", "has_token": True}):
+                                    ok = self.pool.switch_to_account(acc_id, auto_reload=True, reset_mode="hard_restart", verify=False)
+                                    self.assertTrue(ok)
+                                    # Strict ordering: terminate MUST precede inject_profile, which MUST precede relaunch
+                                    self.assertIn("terminate", call_order)
+                                    self.assertIn("inject_profile", call_order)
+                                    self.assertIn("relaunch", call_order)
+                                    term_idx = call_order.index("terminate")
+                                    inj_idx = call_order.index("inject_profile")
+                                    relaunch_idx = call_order.index("relaunch")
+                                    self.assertLess(term_idx, inj_idx, "terminate must happen before inject_profile")
+                                    self.assertLess(inj_idx, relaunch_idx, "inject_profile must happen before relaunch")
+        finally:
+            con = sqlite3.connect(DB_FILE)
+            con.execute("DELETE FROM accounts WHERE id = ?", (acc_id,))
+            con.commit()
+            con.close()
 
     # =========================================================================
     # 3. CASCADING CONTINUATION ACROSS MULTIPLE ACCOUNTS

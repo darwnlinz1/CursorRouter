@@ -28,7 +28,10 @@ import secrets
 import shutil
 import time
 import copy
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
+
+from app_paths import get_data_dir
+from jsonc_utils import loads_jsonc, atomic_write_json
 
 class CursorSettingsManager:
     DEFAULT_MODELS = [
@@ -56,7 +59,8 @@ class CursorSettingsManager:
         "auto_resend_action": "manual",  # "auto" | "always" | "manual"
         "continue_prompt": "Tiếp tục",
         "target_mode": "composer",     # "composer" | "chat"
-        "antidetect_mode": "account_locked"  # "account_locked" | "stealth_randomize" | "native_standard"
+        "antidetect_mode": "account_locked",  # "account_locked" | "stealth_randomize" | "native_standard"
+        "apply_profile_on_switch": False,  # Opt-in: never overwrite user's Cursor settings.json on switch by default
     }
 
     # =========================================================================
@@ -351,7 +355,7 @@ class CursorSettingsManager:
 
     def __init__(self, workspace_dir: Optional[str] = None, cursor_user_dir: Optional[str] = None):
         self.appdata = os.getenv("APPDATA") or ""
-        default_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        default_root = get_data_dir()
         if workspace_dir:
             self.workspace_dir = os.path.abspath(workspace_dir)
         elif os.path.exists(os.path.join(os.getcwd(), "auto_switch_config.json")):
@@ -366,6 +370,7 @@ class CursorSettingsManager:
         self.settings_path = os.path.join(self.cursor_user_dir, "settings.json")
         self.storage_path = os.path.join(self.cursor_user_dir, "globalStorage", "storage.json")
         self.storage_bak_path = os.path.join(self.cursor_user_dir, "globalStorage", "storage.json.bak")
+        self.storage_orig_bak_path = os.path.join(self.cursor_user_dir, "globalStorage", "storage.json.orig.bak")
         self.cursorrules_path = os.path.join(self.workspace_dir, ".cursorrules")
         self.auto_switch_config_path = os.path.join(self.workspace_dir, "auto_switch_config.json")
         self.profiles_path = os.path.join(self.workspace_dir, "cursor_config_profiles.json")
@@ -399,16 +404,22 @@ class CursorSettingsManager:
     # 1. Cursor Settings (settings.json) - 100% Comprehensive Native Fidelity
     # =========================================================================
     def get_settings(self) -> Dict[str, Any]:
-        """Doc toan bo cau hinh Cursor tu settings.json va auto_switch_config.json."""
+        """Doc toan bo cau hinh Cursor tu settings.json (JSONC-safe) va auto_switch_config.json."""
         raw_settings = {}
         if os.path.exists(self.settings_path):
             try:
                 with open(self.settings_path, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
-                        raw_settings = json.loads(content)
+                        parsed = loads_jsonc(content)
+                        if isinstance(parsed, dict):
+                            raw_settings = parsed
             except Exception as e:
                 print(f"[-] Loi doc settings.json: {e}")
+
+        # Auto-Switch & UI-only taxonomy preferences (kept out of native Cursor settings.json)
+        autoswitch_full = self.get_auto_switch_config()
+        ui_prefs = autoswitch_full.get("ui_preferences") if isinstance(autoswitch_full.get("ui_preferences"), dict) else {}
 
         # 1. General: Startup, Notifications, Privacy & Telemetry
         startup_editor = raw_settings.get("workbench.startupEditor", "none")
@@ -586,47 +597,47 @@ class CursorSettingsManager:
             # Structured 8 authentic Cursor categories
             "sections": {
                 "general": {
-                    "startup_behavior": raw_settings.get("startup_behavior", startup_editor),
+                    "startup_behavior": ui_prefs.get("startup_behavior", startup_editor),
                     "startup_editor": startup_editor,
                     "restore_windows": restore_windows,
                     "auto_scroll": auto_scroll,
                     "custom_base_url": custom_base_url,
                     "dnd_mode": dnd_mode,
                     "silent_notifications": silent_notifications,
-                    "notifications_enabled": raw_settings.get("notifications_enabled", (not silent_notifications and not dnd_mode)),
-                    "privacy_mode": raw_settings.get("privacy_mode", privacy_mode),
+                    "notifications_enabled": (not silent_notifications and not dnd_mode),
+                    "privacy_mode": privacy_mode,
                     "ghost_mode": ghost_mode,
                     "telemetry_level": telemetry_level,
-                    "telemetry_enabled": raw_settings.get("telemetry_enabled", (telemetry_level != "off")),
+                    "telemetry_enabled": (telemetry_level != "off"),
                     "enable_crash_reporter": crash_reporter,
                     "index_locally_only": index_locally_only
                 },
                 "appearance": {
-                    "color_theme": raw_settings.get("color_theme", color_theme),
+                    "color_theme": color_theme,
                     "preferred_dark_theme": preferred_dark_theme,
-                    "agent_conversation_style": raw_settings.get("agent_conversation_style", agent_conversation_style),
+                    "agent_conversation_style": agent_conversation_style,
                     "icon_theme": icon_theme,
                     "font_size": font_size,
-                    "typography_font_size": raw_settings.get("typography_font_size", font_size),
+                    "typography_font_size": font_size,
                     "font_family": font_family,
-                    "typography_font_family": raw_settings.get("typography_font_family", font_family),
+                    "typography_font_family": font_family,
                     "font_weight": font_weight,
                     "line_height": line_height,
-                    "high_contrast": raw_settings.get("high_contrast", high_contrast),
+                    "high_contrast": high_contrast,
                     "motion": motion,
-                    "motion_reduced": raw_settings.get("motion_reduced", (motion != "off")),
+                    "motion_reduced": (motion != "off"),
                     "privacy_mode": privacy_mode
                 },
                 "agent": {
-                    "default_model": raw_settings.get("default_model", default_model),
+                    "default_model": default_model,
                     "custom_model": custom_model,
                     "thinking_effort": thinking_effort,
                     "fast_mode": fast_mode,
-                    "max_context_length": raw_settings.get("max_context_length", composer_context_limit),
+                    "max_context_length": composer_context_limit,
                     "composer_context_limit": composer_context_limit,
-                    "composer_mode": raw_settings.get("composer_mode", composer_agent_mode),
+                    "composer_mode": composer_agent_mode,
                     "composer_agent_mode": composer_agent_mode,
-                    "auto_run_commands": raw_settings.get("auto_run_commands", composer_auto_execute_terminal),
+                    "auto_run_commands": composer_auto_execute_terminal,
                     "composer_auto_execute_terminal": composer_auto_execute_terminal,
                     "composer_auto_apply": composer_auto_apply,
                     "composer_use_tools": composer_use_tools,
@@ -643,9 +654,9 @@ class CursorSettingsManager:
                 },
                 "git_prs": {
                     "enable_pull_requests": enable_pull_requests,
-                    "git_integration": raw_settings.get("git_integration", enable_pull_requests),
-                    "pr_review_assistant": raw_settings.get("pr_review_assistant", enable_pull_requests),
-                    "commit_message_generator": raw_settings.get("commit_message_generator", True),
+                    "git_integration": ui_prefs.get("git_integration", enable_pull_requests),
+                    "pr_review_assistant": enable_pull_requests,
+                    "commit_message_generator": ui_prefs.get("commit_message_generator", True),
                     "auto_fetch": auto_fetch,
                     "default_branch": default_branch,
                     "prune_on_fetch": prune_on_fetch,
@@ -654,16 +665,16 @@ class CursorSettingsManager:
                 },
                 "worktrees": {
                     "worktrees_enabled": worktrees_enabled,
-                    "multi_worktree_isolation": raw_settings.get("multi_worktree_isolation", worktrees_enabled),
-                    "auto_cleanup": raw_settings.get("auto_cleanup", prune_merged),
+                    "multi_worktree_isolation": worktrees_enabled,
+                    "auto_cleanup": prune_merged,
                     "worktrees_directory": worktrees_directory,
                     "auto_create_branch": auto_create_branch,
                     "prune_merged": prune_merged
                 },
                 "browser_network": {
                     "route_via_proxy": is_proxy_routed,
-                    "local_proxy_routed": raw_settings.get("local_proxy_routed", is_proxy_routed),
-                    "web_search_integration": raw_settings.get("web_search_integration", True),
+                    "local_proxy_routed": is_proxy_routed,
+                    "web_search_integration": ui_prefs.get("web_search_integration", True),
                     "http_proxy": http_proxy,
                     "proxy_port": 8999,
                     "proxy_support": proxy_support,
@@ -673,8 +684,8 @@ class CursorSettingsManager:
                 },
                 "tab": {
                     "cpp_enable": cpp_enable,
-                    "cpp_enabled": raw_settings.get("cpp_enabled", cpp_enable),
-                    "suggestion_delay_ms": raw_settings.get("suggestion_delay_ms", cpp_trigger_delay),
+                    "cpp_enabled": cpp_enable,
+                    "suggestion_delay_ms": cpp_trigger_delay,
                     "cpp_model": cpp_model,
                     "cpp_partial_accepts": cpp_partial_accepts,
                     "cpp_auto_suggest": cpp_auto_suggest,
@@ -683,9 +694,9 @@ class CursorSettingsManager:
                 },
                 "code_intelligence": {
                     "indexing_enable": indexing_enable,
-                    "indexing_engine": raw_settings.get("indexing_engine", "turbo_graph" if indexing_enable else "off"),
-                    "semantic_search_enabled": raw_settings.get("semantic_search_enabled", semantic_search),
-                    "symbol_graph_enabled": raw_settings.get("symbol_graph_enabled", precise_symbols),
+                    "indexing_engine": ui_prefs.get("indexing_engine", "turbo_graph" if indexing_enable else "off"),
+                    "semantic_search_enabled": semantic_search,
+                    "symbol_graph_enabled": precise_symbols,
                     "indexing_memory_mb": indexing_memory_mb,
                     "semantic_search": semantic_search,
                     "embeddings_provider": embeddings_provider,
@@ -745,27 +756,46 @@ class CursorSettingsManager:
         }
 
     def update_settings(self, updates: Dict[str, Any]) -> Dict[str, Any]:
-        """Cap nhat settings.json an toan, bao ton cac key ngoai le khac."""
+        """Cap nhat settings.json an toan (JSONC-safe, atomic write, zero internal key pollution)."""
         os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
-        
+        updates = dict(updates or {})
+
         raw_settings = {}
         if os.path.exists(self.settings_path):
             try:
                 with open(self.settings_path, "r", encoding="utf-8") as f:
                     c = f.read().strip()
                     if c:
-                        raw_settings = json.loads(c)
-            except Exception:
-                raw_settings = {}
+                        parsed = loads_jsonc(c)
+                        if isinstance(parsed, dict):
+                            raw_settings = parsed
+            except Exception as parse_err:
+                # Never silently wipe a user's existing settings.json on syntax error!
+                bak = f"{self.settings_path}.corrupt.{int(time.time())}.bak"
+                try:
+                    shutil.copy2(self.settings_path, bak)
+                except Exception:
+                    pass
+                print(f"[-] Canh bao parse settings.json ({parse_err}). Da sao luu tai {bak} va huy ghi de.")
+                res = self.get_settings()
+                res["success"] = False
+                res["error"] = f"settings.json parse error (backup saved): {parse_err}"
+                return res
 
+        ui_pref_updates: Dict[str, Any] = {}
         if "sections" in updates and isinstance(updates["sections"], dict):
-            for sec_name, sec_dict in updates["sections"].items():
+            for _sec_name, sec_dict in updates["sections"].items():
                 if isinstance(sec_dict, dict):
                     for k, v in sec_dict.items():
                         updates[k] = v
-                        raw_settings[k] = v
                         if k == "startup_behavior":
-                            raw_settings["workbench.startupEditor"] = v
+                            raw_settings["workbench.startupEditor"] = str(v)
+                            ui_pref_updates["startup_behavior"] = str(v)
+                        elif k == "notifications_enabled":
+                            raw_settings["notifications.silent"] = not bool(v)
+                            raw_settings["notifications.doNotDisturbMode"] = not bool(v)
+                        elif k == "telemetry_enabled":
+                            raw_settings["telemetry.telemetryLevel"] = "all" if bool(v) else "off"
                         elif k == "typography_font_size":
                             raw_settings["editor.fontSize"] = int(v) if isinstance(v, (int, str)) and str(v).isdigit() else v
                         elif k == "typography_font_family":
@@ -776,16 +806,32 @@ class CursorSettingsManager:
                             raw_settings["workbench.reduceMotion"] = "on" if v else "off"
                         elif k == "max_context_length":
                             raw_settings["cursor.composer.contextLimit"] = int(v)
+                        elif k == "composer_mode":
+                            raw_settings["cursor.composer.agentMode"] = bool(v)
                         elif k == "auto_run_commands":
                             raw_settings["cursor.composer.autoExecuteTerminal"] = bool(v)
+                        elif k == "git_integration":
+                            raw_settings["cursor.git.enablePullRequests"] = bool(v)
+                            ui_pref_updates["git_integration"] = bool(v)
                         elif k == "pr_review_assistant":
                             raw_settings["cursor.git.enablePullRequests"] = bool(v)
+                        elif k == "commit_message_generator":
+                            ui_pref_updates["commit_message_generator"] = bool(v)
                         elif k == "multi_worktree_isolation":
                             raw_settings["cursor.worktrees.enabled"] = bool(v)
+                        elif k == "auto_cleanup":
+                            raw_settings["cursor.worktrees.pruneMerged"] = bool(v)
+                        elif k == "local_proxy_routed":
+                            updates["route_via_proxy"] = bool(v)
+                        elif k == "web_search_integration":
+                            ui_pref_updates["web_search_integration"] = bool(v)
+                        elif k == "cpp_enabled":
+                            raw_settings["cursor.cpp.enable"] = bool(v)
                         elif k == "suggestion_delay_ms":
                             raw_settings["cursor.cpp.triggerDelay"] = int(v)
                         elif k == "indexing_engine":
                             raw_settings["cursor.indexing.enable"] = (v != "off")
+                            ui_pref_updates["indexing_engine"] = str(v)
                         elif k == "symbol_graph_enabled":
                             raw_settings["cursor.codeIntelligence.preciseSymbols"] = bool(v)
                         elif k == "semantic_search_enabled":
@@ -988,13 +1034,21 @@ class CursorSettingsManager:
             for k, v in updates["custom"].items():
                 raw_settings[k] = v
 
-        # 8. Ghi vao settings.json
-        with open(self.settings_path, "w", encoding="utf-8") as f:
-            json.dump(raw_settings, f, indent=4, ensure_ascii=False)
+        # 8. Ghi atomic vao settings.json
+        atomic_write_json(self.settings_path, raw_settings, indent=4)
 
-        # 9. Cap nhat dong thoi auto_switch_config.json neu co cac truong lien quan
-        autoswitch_keys = {"reset_mode", "auto_resend_action", "continue_prompt", "auto_rotate_enabled", "quota_threshold", "target_mode"}
+        # 9. Cap nhat dong thoi auto_switch_config.json neu co cac truong lien quan hoac ui_preferences
+        autoswitch_keys = {
+            "reset_mode", "auto_resend_action", "continue_prompt",
+            "auto_rotate_enabled", "quota_threshold", "target_mode",
+            "antidetect_mode", "apply_profile_on_switch",
+        }
         autoswitch_updates = {k: v for k, v in updates.items() if k in autoswitch_keys}
+        if ui_pref_updates:
+            cur_cfg = self.get_auto_switch_config()
+            merged_ui = dict(cur_cfg.get("ui_preferences") or {})
+            merged_ui.update(ui_pref_updates)
+            autoswitch_updates["ui_preferences"] = merged_ui
         if autoswitch_updates:
             self.update_auto_switch_config(autoswitch_updates)
 
@@ -1011,7 +1065,7 @@ class CursorSettingsManager:
         if os.path.exists(self.auto_switch_config_path):
             try:
                 with open(self.auto_switch_config_path, "r", encoding="utf-8") as f:
-                    data = json.loads(f.read().strip())
+                    data = loads_jsonc(f.read().strip())
                     if isinstance(data, dict):
                         cfg.update(data)
             except Exception as e:
@@ -1021,13 +1075,17 @@ class CursorSettingsManager:
     def update_auto_switch_config(self, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Luu cau hinh tu dong doi account va tiep tuc gui tin nhan."""
         current = self.get_auto_switch_config()
+        allowed = {
+            "reset_mode", "auto_resend_action", "continue_prompt",
+            "auto_rotate_enabled", "quota_threshold", "target_mode",
+            "antidetect_mode", "apply_profile_on_switch", "ui_preferences",
+        }
         for k, v in updates.items():
-            if k in current or k in ("reset_mode", "auto_resend_action", "continue_prompt", "auto_rotate_enabled", "quota_threshold", "target_mode", "antidetect_mode"):
+            if k in current or k in allowed:
                 current[k] = v
 
         try:
-            with open(self.auto_switch_config_path, "w", encoding="utf-8") as f:
-                json.dump(current, f, indent=4, ensure_ascii=False)
+            atomic_write_json(self.auto_switch_config_path, current, indent=4)
         except Exception as e:
             print(f"[-] Loi ghi auto_switch_config.json: {e}")
 
@@ -1113,8 +1171,7 @@ class CursorSettingsManager:
             data["telemetry.sqmId"] = fp["sqmId"]
 
         try:
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
+            atomic_write_json(self.storage_path, data, indent=4)
 
             try:
                 import cursor_checksum
@@ -1127,6 +1184,40 @@ class CursorSettingsManager:
         except Exception as e:
             print(f"[-] Loi ghi storage.json apply_fingerprint: {e}")
             return False
+
+    def apply_antidetect_mode(
+        self,
+        mode: Optional[str] = None,
+        account_id: Optional[int] = None,
+        fingerprint: Optional[Dict[str, Any]] = None,
+        fingerprint_loader: Optional[Callable[[int], Dict[str, Any]]] = None,
+    ) -> bool:
+        """
+        Single authoritative Anti-Detect policy dispatcher used across account switches,
+        rotations, and proxy swaps:
+        - account_locked: applies account's persistent fingerprint
+        - stealth_randomize: generates fresh cryptographic IDs
+        - native_standard: strictly preserves host machine IDs (no-op)
+        """
+        effective_mode = mode or self.get_auto_switch_config().get("antidetect_mode", "account_locked")
+        if effective_mode == "native_standard":
+            return True
+        if effective_mode == "stealth_randomize":
+            self.spoof_storage_ids()
+            return True
+        if effective_mode == "account_locked":
+            fp = fingerprint
+            if not fp and account_id is not None and callable(fingerprint_loader):
+                try:
+                    fp = fingerprint_loader(account_id)
+                except Exception:
+                    fp = None
+            if isinstance(fp, dict) and fp.get("machineId"):
+                return self.apply_fingerprint(fp)
+            self.spoof_storage_ids()
+            return True
+        self.spoof_storage_ids()
+        return True
 
     def spoof_storage_ids(self) -> Dict[str, Any]:
         """
@@ -1147,9 +1238,11 @@ class CursorSettingsManager:
             except Exception:
                 data = {}
 
-        # Luon tao backup trang thai hien tai truoc khi ghi de de ho tro restore chinh xac
+        # Luon tao backup truoc khi ghi de (va giu ban goc vinh vien storage.json.orig.bak)
         if os.path.exists(self.storage_path):
             try:
+                if not os.path.exists(self.storage_orig_bak_path):
+                    shutil.copy2(self.storage_path, self.storage_orig_bak_path)
                 shutil.copy2(self.storage_path, self.storage_bak_path)
             except Exception as e:
                 print(f"[-] Loi tao backup storage.json: {e}")
@@ -1165,8 +1258,7 @@ class CursorSettingsManager:
         data["telemetry.devDeviceId"] = new_dev_device_id
         data["telemetry.sqmId"] = new_sqm_id
 
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+        atomic_write_json(self.storage_path, data, indent=4)
 
         try:
             import cursor_checksum

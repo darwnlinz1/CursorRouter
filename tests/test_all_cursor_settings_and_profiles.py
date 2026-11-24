@@ -400,11 +400,29 @@ class TestServerProfileEndpoints:
         })
 
     def test_apply_all_endpoint(self, client):
-        res = client.post("/api/cursor/profiles/apply-all", json={"profile_id": "default"})
-        assert res.status_code == 200
-        data = res.get_json()
-        assert data["success"] is True
-        assert data["updated_count"] >= 1
+        import sqlite3
+        from account_pool import DB_FILE
+        con = sqlite3.connect(DB_FILE, timeout=30.0)
+        cur = con.cursor()
+        cur.execute("DELETE FROM accounts WHERE email = 'profile_apply_all@example.com'")
+        cur.execute("""
+            INSERT INTO accounts (file_name, email, status)
+            VALUES ('profile_apply_all.txt', 'profile_apply_all@example.com', 'READY')
+        """)
+        acc_id = cur.lastrowid
+        con.commit()
+        con.close()
+        try:
+            res = client.post("/api/cursor/profiles/apply-all", json={"profile_id": "default"})
+            assert res.status_code == 200
+            data = res.get_json()
+            assert data["success"] is True
+            assert data["updated_count"] >= 1
+        finally:
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            con.execute("DELETE FROM accounts WHERE id = ?", (acc_id,))
+            con.commit()
+            con.close()
 
     def test_export_and_import_endpoints(self, client):
         res = client.get("/api/cursor/profiles/export")

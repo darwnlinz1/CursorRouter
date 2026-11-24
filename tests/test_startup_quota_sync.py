@@ -242,7 +242,9 @@ class TestStartupQuotaSync(unittest.TestCase):
         acc = dict(cur.fetchone())
         con.close()
 
-        self.assertEqual(acc["access_token"], "new_tok")
+        from token_cipher import decrypt_token
+        self.assertTrue(acc["access_token"].startswith("enc:v1:"))
+        self.assertEqual(decrypt_token(acc["access_token"]), "new_tok")
         self.assertEqual(acc["status"], "READY")
         self.assertEqual(acc["usage_percent"], 8.0)
         self.assertEqual(call_count["calls"], 1)

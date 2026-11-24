@@ -16,12 +16,14 @@ a = Analysis(
     binaries=[],
     datas=[
         (os.path.join(_ROOT_DIR, 'templates'), 'templates'),
-        (os.path.join(_ROOT_DIR, 'Cookies'), 'Cookies'),
+        (os.path.join(_ROOT_DIR, 'static'), 'static'),
         (os.path.join(_ROOT_DIR, 'src'), 'src'),
     ],
     hiddenimports=[
         'flask', 'jinja2', 'requests', 'psutil', 'sqlite3', 'ctypes', 'webview',
-        'aiohttp', 'aiohttp.web',
+        'aiohttp', 'aiohttp.web', 'httpx', 'httpcore', 'h2',
+        'app_paths', 'jsonc_utils', 'async_sync_engine', 'token_cipher',
+        'cursor_checksum', 'cursor_storage', 'pkce_auth', 'windows_notifier',
         'ai_optimizer', 'updater', 'cursor_settings', 'account_pool',
         'cursor_reloader', 'rotating_proxy', 'token_pool', 'smart_task_filter',
         'chat_lock_detector'

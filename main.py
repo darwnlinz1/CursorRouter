@@ -36,11 +36,13 @@ if __name__ == "__main__":
         from cursor_manager import main as cli_main
         cli_main()
     else:
-        # Mac dinh khoi dong Web Dashboard Host
-        from server import app
+        # Mac dinh khoi dong Web Dashboard Host (bind 127.0.0.1 an toan)
+        from server import app, start_background_services
+        host = os.getenv("CURSOR_HOST", "127.0.0.1")
         port = int(os.getenv("PORT", "7860"))
+        start_background_services()
         print(f"\n========================================================")
-        print(f"  [>] CURSOR MANAGER HOST DANG CHAY TAI:")
-        print(f"  [>] http://127.0.0.1:{port}  hoac  http://localhost:{port}")
+        print(f"  [>] CURSORROUTER v3.0 HOST DANG CHAY TAI:")
+        print(f"  [>] http://{host}:{port}  hoac  http://localhost:{port}")
         print(f"========================================================\n")
-        app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+        app.run(host=host, port=port, debug=False, threaded=True)

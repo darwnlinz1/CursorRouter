@@ -70,13 +70,23 @@ class TestCursorSyncAndSwitch(unittest.TestCase):
         self.assertIsInstance(data["cursor_running"], bool)
 
     def test_04_api_cursor_launch_endpoint(self):
-        """Test /api/cursor/launch endpoint returns valid JSON and execution status."""
-        res = self.client.post("/api/cursor/launch")
-        self.assertEqual(res.status_code, 200)
-        data = res.get_json()
-        self.assertIn("success", data)
-        self.assertIn("status", data)
-        self.assertIn("message", data)
+        """Test /api/cursor/launch endpoint returns valid JSON without launching real desktop app."""
+        from unittest.mock import patch
+        with patch.object(
+            cursor_reloader,
+            "launch_cursor_app",
+            return_value=True,
+        ), patch.object(
+            cursor_reloader,
+            "get_cursor_status",
+            return_value={"is_running": False, "has_window": False, "exe_path": "Cursor.exe"},
+        ):
+            res = self.client.post("/api/cursor/launch")
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertIn("success", data)
+            self.assertIn("status", data)
+            self.assertIn("message", data)
 
     # =========================================================================
     # 2. Auto-Resend vs Manual Action Configuration
@@ -124,20 +134,23 @@ class TestCursorSyncAndSwitch(unittest.TestCase):
         self.assertEqual(restored_cfg.get("target_mode"), "composer")
 
     def test_06_send_continue_prompt_endpoint(self):
-        """Test /api/cursor/send-continue handles requests gracefully."""
-        res = self.client.post("/api/cursor/send-continue", json={
-            "prompt": "Tiếp tục unit test",
-            "target_mode": "composer"
-        })
-        self.assertEqual(res.status_code, 200)
-        data = res.get_json()
-        self.assertIn("success", data)
-        # If Cursor is open, success is True. If headless, returns handled error.
-        if data.get("success"):
+        """Test /api/cursor/send-continue handles requests gracefully without touching host desktop."""
+        from unittest.mock import patch
+        with patch.object(
+            cursor_reloader,
+            "send_continue_prompt",
+            return_value={"success": True, "prompt": "Tiếp tục unit test", "target": "composer"},
+        ) as mock_send:
+            res = self.client.post("/api/cursor/send-continue", json={
+                "prompt": "Tiếp tục unit test",
+                "target_mode": "composer"
+            })
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data.get("success"))
             self.assertEqual(data.get("prompt"), "Tiếp tục unit test")
             self.assertEqual(data.get("target"), "composer")
-        else:
-            self.assertIn("error", data)
+            mock_send.assert_called_once()
 
     # =========================================================================
     # 3. 100% Native Cursor Settings Fidelity
@@ -259,17 +272,33 @@ class TestCursorSyncAndSwitch(unittest.TestCase):
     # 4. Account Auto-Switching & Quota Threshold Enforcement
     # =========================================================================
     def test_13_auto_switch_best_account_selection(self):
-        """Test that auto_switch_best_account selects only accounts with usage < 50%."""
-        # Find candidate with usage < 50%
-        best = self.pool.auto_switch_best_account(notify=False, auto_continue=False)
-        if best:
-            self.assertLess(best.get("usage_percent", 100), QUOTA_EXHAUSTION_THRESHOLD)
-            self.assertNotEqual(best.get("status"), "EXHAUSTED")
-            
-            # Verify state.vscdb updated with this account
-            active = self.storage_mgr.get_active_account()
-            self.assertEqual(active.get("email", "").lower(), best.get("email", "").lower())
-            self.assertTrue(len(active.get("access_token", "")) > 10)
+        """Test that auto_switch_best_account selects only accounts with usage < 50% (isolated state.vscdb)."""
+        from unittest.mock import patch
+        tmp = tempfile.mkdtemp(prefix="cr_sync13_")
+        fake_vscdb = os.path.join(tmp, "state.vscdb")
+        con_v = sqlite3.connect(fake_vscdb)
+        con_v.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+        con_v.commit()
+        con_v.close()
+        orig_db = self.pool.storage.db_path
+        self.pool.storage.db_path = fake_vscdb
+        try:
+            with patch.object(cursor_reloader, "hard_restart_cursor", return_value={"success": True}), \
+                 patch.object(cursor_reloader, "trigger_cursor_reload", return_value={"success": True}), \
+                 patch.object(cursor_reloader, "terminate_cursor", return_value=True), \
+                 patch.object(cursor_reloader, "launch_cursor_app", return_value=True), \
+                 patch.object(cursor_reloader, "send_continue_prompt", return_value={"success": True}):
+                best = self.pool.auto_switch_best_account(notify=False, auto_continue=False)
+                if best:
+                    self.assertLess(best.get("usage_percent", 100), QUOTA_EXHAUSTION_THRESHOLD)
+                    self.assertNotEqual(best.get("status"), "EXHAUSTED")
+                    tmp_storage = CursorStorageManager(db_path=fake_vscdb)
+                    active = tmp_storage.get_active_account()
+                    self.assertEqual(active.get("email", "").lower(), best.get("email", "").lower())
+                    self.assertTrue(len(active.get("access_token", "")) > 10)
+        finally:
+            self.pool.storage.db_path = orig_db
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_14_proxy_in_flight_token_sync_to_storage(self):
         """Test that proxy swapping tokens writes them directly to state.vscdb."""

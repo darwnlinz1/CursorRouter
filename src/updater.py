@@ -90,23 +90,23 @@ def is_newer_version(remote: str, local: str) -> bool:
     return compare_versions(remote, local) > 0
 
 
+from app_paths import is_frozen, get_data_dir, get_updates_dir
+
+
 class AutoUpdater:
     """Thread-safe auto-updater engine for desktop & service environments."""
 
-    DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/cursor-manager/releases/main/manifest.json"
+    DEFAULT_MANIFEST_URL = "https://github.com/darwnlinz1/CursorRouter/releases/latest/download/manifest.json"
 
     def __init__(
         self,
-        current_version: str = "2.4.0",
+        current_version: str = "3.0.0",
         manifest_url: Optional[str] = None,
         storage_dir: Optional[str] = None
     ):
         self.current_version = current_version
         self.manifest_url = manifest_url or self.DEFAULT_MANIFEST_URL
-        self.storage_dir = storage_dir or os.path.join(
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
-            ".updates"
-        )
+        self.storage_dir = storage_dir or get_updates_dir()
         os.makedirs(self.storage_dir, exist_ok=True)
 
         self._lock = threading.Lock()
@@ -362,9 +362,14 @@ exit /b 0
         if not archive or not os.path.exists(archive):
             return {"success": False, "error": "Staged update archive not found"}
 
-        root_dir = target_dir or os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        root_dir = target_dir or get_data_dir()
         current_pid = os.getpid()
-        cmd = relaunch_cmd or f'"{sys.executable}" "{os.path.join(root_dir, "main.py")}" --native'
+        if relaunch_cmd:
+            cmd = relaunch_cmd
+        elif is_frozen():
+            cmd = f'"{sys.executable}"'
+        else:
+            cmd = f'"{sys.executable}" "{os.path.join(root_dir, "main.py")}" --native'
 
         with self._lock:
             self._state = UpdaterState.APPLYING
@@ -400,5 +405,5 @@ _global_updater: Optional[AutoUpdater] = None
 def get_updater() -> AutoUpdater:
     global _global_updater
     if _global_updater is None:
-        _global_updater = AutoUpdater(current_version="2.4.0")
+        _global_updater = AutoUpdater(current_version="3.0.0")
     return _global_updater

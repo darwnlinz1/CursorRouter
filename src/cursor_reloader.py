@@ -36,15 +36,9 @@ VK_RWIN = 0x5C
 BRIDGE_PORT = 49123
 
 def _parse_jsonc(content: str) -> Any:
-    """Parse JSON with single-line comments, multi-line comments, and trailing commas."""
-    import re
-    # Strip multi-line comments /* ... */
-    c = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-    # Strip single-line comments // ...
-    c = re.sub(r'//.*$', '', c, flags=re.MULTILINE)
-    # Strip trailing commas before ] or }
-    c = re.sub(r',\s*([\]}])', r'\1', c)
-    return json.loads(c)
+    """Parse JSON with single-line comments, multi-line comments, and trailing commas (string-safe)."""
+    from jsonc_utils import loads_jsonc
+    return loads_jsonc(content)
 
 def ensure_keybinding() -> bool:
     """Dam bao phim tat ctrl+shift+f11 duoc gan cho workbench.action.reloadWindow trong keybindings.json (Tranh 100% xung dot voi NVIDIA Alt+R)."""
@@ -615,8 +609,17 @@ def get_cursor_exe_path() -> Optional[str]:
         return w
     return None
 
-def get_cursor_status() -> Dict[str, Any]:
+_CURSOR_STATUS_CACHE: Optional[Dict[str, Any]] = None
+_CURSOR_STATUS_CACHE_TS: float = 0.0
+
+
+def get_cursor_status(use_cache: bool = False, cache_ttl: float = 1.5) -> Dict[str, Any]:
     """Kiem tra toan dien trang thai tien trinh va cua so ung dung Cursor."""
+    global _CURSOR_STATUS_CACHE, _CURSOR_STATUS_CACHE_TS
+    now = time.monotonic()
+    if use_cache and _CURSOR_STATUS_CACHE is not None and (now - _CURSOR_STATUS_CACHE_TS) < cache_ttl:
+        return dict(_CURSOR_STATUS_CACHE)
+
     running = is_cursor_running()
     hwnd = find_cursor_window() if running else None
     window_title = ""
@@ -631,13 +634,16 @@ def get_cursor_status() -> Dict[str, Any]:
         except Exception:
             pass
 
-    return {
+    res = {
         "is_running": running,
         "has_window": bool(hwnd),
         "hwnd": hwnd,
         "window_title": window_title,
         "exe_path": get_cursor_exe_path()
     }
+    _CURSOR_STATUS_CACHE = res
+    _CURSOR_STATUS_CACHE_TS = now
+    return dict(res)
 
 def terminate_cursor(timeout_sec: float = 8.0) -> bool:
     """
