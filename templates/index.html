@@ -345,14 +345,35 @@
                 <button id="ingest-tab-paste" class="sub-tab-btn active" onclick="switchIngestTab('paste')">Quick Paste</button>
                 <button id="ingest-tab-drop" class="sub-tab-btn" onclick="switchIngestTab('drop')">Drop / Folder</button>
               </div>
+              <button id="btn-oauth-add" class="btn btn-xs btn-primary" onclick="startInteractiveOAuthLogin(true)" title="Mở trang đăng nhập Cursor OAuth PKCE chính thức — tự động lấy Desktop IDE Session Token 60 ngày chuẩn 100%">+ Đăng Nhập Thêm Acc (OAuth)</button>
               <button id="btn-capture-cursor" class="btn btn-xs btn-emerald" onclick="captureActiveCursorAccount()" title="Chụp & giải mã phiên đang đăng nhập trực tiếp từ Cursor IDE (lấy Desktop Session Token chuẩn)">Lưu Acc Từ Cursor</button>
               <button id="btn-open-cookie-folder" class="btn btn-xs" onclick="openCookieFolder()">Mở Thư Mục</button>
               <button id="btn-quarantine-cookies" class="btn btn-xs btn-amber" onclick="quarantineCorruptedCookies()">Cách Ly Hỏng</button>
-              <button id="btn-convert-cookies" class="btn btn-xs btn-primary" onclick="convertCookiesToTokens()">Quét &amp; Đồng Bộ H2</button>
+              <button id="btn-convert-cookies" class="btn btn-xs" onclick="convertCookiesToTokens()">Quét &amp; Đồng Bộ H2</button>
             </div>
           </div>
 
           <div id="cookie-workbench-body" class="workbench-body">
+            <!-- Interactive Official OAuth PKCE Banner -->
+            <div id="oauth-pkce-banner" class="hidden" style="background:rgba(16,185,129,0.08);border:1px solid var(--emerald-border);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="status-dot dot-emerald pulse"></span>
+                  <strong style="font-size:12.5px;color:#fff;">Đang chờ xác nhận OAuth PKCE từ trình duyệt</strong>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button class="btn btn-xs btn-emerald" onclick="copyOAuthLoginUrl()">Copy Link (Mở Tab Ẩn Danh)</button>
+                  <button class="btn btn-xs btn-rose" onclick="cancelInteractiveOAuthLogin(false)">Hủy</button>
+                </div>
+              </div>
+              <input id="oauth-pkce-url" type="text" readonly class="input-field mono" style="font-size:11px;" onclick="this.select()">
+              <div id="oauth-pkce-status" class="mono" style="font-size:11px;color:var(--emerald-text);">Đang chờ xác nhận...</div>
+            </div>
+
+            <div style="background:#101012;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:9px 12px;font-size:11.5px;color:var(--text-secondary);">
+              <strong style="color:#fff;">Lưu ý Cursor 2026:</strong> Cookie web xuất cũ bị Cursor chặn đổi sang phiên IDE (<code class="mono">FRESH_SIGN_IN_REQUIRED</code> — chỉ đọc được quota, dán vào IDE sẽ báo <em>Authentication error</em>). Để xoay tua mượt 60 ngày, hãy dùng <strong class="text-emerald">+ Đăng Nhập Thêm Acc (OAuth)</strong> (copy link mở ở tab Ẩn danh cho từng tài khoản) hoặc <strong class="text-emerald">Lưu Acc Từ Cursor</strong>.
+            </div>
+
             <!-- Tab 1: Quick Paste -->
             <div id="ingest-pane-paste" class="paste-box-wrap">
               <textarea

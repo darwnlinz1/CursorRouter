@@ -553,33 +553,31 @@ class AccountPoolManager:
         self._notify_change("cookies_scanned", {"added": added_count})
         return added_count
 
-    def capture_active_cursor_session(self) -> Dict[str, Any]:
+    def upsert_session_account(
+        self,
+        access_token: str,
+        refresh_token: Optional[str] = None,
+        email: Optional[str] = None,
+        display_name: Optional[str] = None,
+        auth_id: Optional[str] = None,
+        source: str = "oauth_pkce",
+    ) -> Dict[str, Any]:
         """
-        Capture the currently logged-in Cursor IDE account directly from state.vscdb
-        (automatically decrypting cursor-safe-storage:v1: on Windows via DPAPI+AES-GCM)
-        and store its genuine desktop session token into the encrypted SQLite pool.
+        Persist a genuine Cursor IDE session token (`access_token` + `refresh_token`)
+        from official OAuth PKCE login or active state.vscdb capture into encrypted SQLite.
         """
-        from cursor_storage import detect_token_type
+        from cursor_storage import detect_token_type, decode_jwt_payload
 
-        active = self.storage.get_active_account()
-        if not active or not active.get("access_token"):
-            return {
-                "success": False,
-                "error": "Không tìm thấy phiên đăng nhập Cursor IDE hợp lệ trong state.vscdb. Hãy đăng nhập Cursor IDE trước rồi bấm lại.",
-            }
-
-        tok = active["access_token"]
-        if tok.startswith("cursor-safe-storage:v1:"):
-            return {
-                "success": False,
-                "error": "Không thể giải mã cursor-safe-storage:v1: từ Cursor Local State trên máy này.",
-            }
+        tok = (access_token or "").strip()
+        if not tok or len(tok) < 20:
+            return {"success": False, "error": "Access token không hợp lệ."}
 
         tok_type = detect_token_type(tok)
-        ref = active.get("refresh_token") or tok
-        email = (active.get("email") or "").strip()
-        disp_name = active.get("displayName") or (email.split("@")[0] if email else "")
-        auth_id = active.get("authId")
+        jwt_claims = decode_jwt_payload(tok)
+        ref = (refresh_token or tok).strip()
+        email = (email or jwt_claims.get("email") or "").strip()
+        disp_name = (display_name or jwt_claims.get("name") or "").strip()
+        auth_id = auth_id or jwt_claims.get("sub")
         usage_pct = 0.0
         total_spend = 0.0
         display_msg = ""
@@ -596,13 +594,15 @@ class AccountPoolManager:
                 display_msg = profile.get("displayMessage") or ""
 
         if not email:
-            return {"success": False, "error": "Không xác định được email từ phiên Cursor IDE hiện tại."}
+            return {"success": False, "error": "Không xác định được email từ session token."}
+        if not disp_name:
+            disp_name = email.split("@")[0]
 
         now_ts = int(time.time())
         status = "EXHAUSTED" if usage_pct >= self.QUOTA_EXHAUSTION_THRESHOLD else (
             "HIGH_USAGE" if usage_pct >= self.QUOTA_WARNING_THRESHOLD else "READY"
         )
-        fname = f"cursor_session_{email}.txt"
+        fname = f"{source}_{email}.txt"
         enc_tok = encrypt_token(tok)
         enc_ref = encrypt_token(ref)
         tok_hash = compute_token_hash(tok)
@@ -636,6 +636,8 @@ class AccountPoolManager:
                     if "token_type" in cols:
                         sets.append("token_type = ?")
                         params.append(tok_type)
+                    if "cooldown_until" in cols:
+                        sets.append("cooldown_until = 0")
                     params.append(acc_id)
                     cur.execute(f"UPDATE accounts SET {', '.join(sets)} WHERE id = ?", params)
                 else:
@@ -659,7 +661,7 @@ class AccountPoolManager:
             finally:
                 con.close()
 
-        self._notify_change("account_captured", {"account_id": acc_id, "email": email, "token_type": tok_type})
+        self._notify_change("account_captured", {"account_id": acc_id, "email": email, "token_type": tok_type, "source": source})
         return {
             "success": True,
             "account_id": acc_id,
@@ -670,6 +672,35 @@ class AccountPoolManager:
             "status": status,
             "message": f"Đã lưu phiên Cursor IDE ({email} · {tok_type.upper()}) vào pool!",
         }
+
+    def capture_active_cursor_session(self) -> Dict[str, Any]:
+        """
+        Capture the currently logged-in Cursor IDE account directly from state.vscdb
+        (automatically decrypting cursor-safe-storage:v1: on Windows via DPAPI+AES-GCM)
+        and store its genuine desktop session token into the encrypted SQLite pool.
+        """
+        active = self.storage.get_active_account()
+        if not active or not active.get("access_token"):
+            return {
+                "success": False,
+                "error": "Không tìm thấy phiên đăng nhập Cursor IDE hợp lệ trong state.vscdb. Hãy đăng nhập Cursor IDE trước rồi bấm lại.",
+            }
+
+        tok = active["access_token"]
+        if tok.startswith("cursor-safe-storage:v1:"):
+            return {
+                "success": False,
+                "error": "Không thể giải mã cursor-safe-storage:v1: từ Cursor Local State trên máy này.",
+            }
+
+        return self.upsert_session_account(
+            access_token=tok,
+            refresh_token=active.get("refresh_token") or tok,
+            email=active.get("email"),
+            display_name=active.get("displayName"),
+            auth_id=active.get("authId"),
+            source="cursor_session",
+        )
 
     def import_pasted_cookies(self, raw_text: str) -> Dict[str, Any]:
         """
@@ -1535,21 +1566,26 @@ class AccountPoolManager:
             cur.execute("PRAGMA table_info(accounts);")
             cols = [r[1] for r in cur.fetchall()]
             has_cd = "cooldown_until" in cols
+            has_tt = "token_type" in cols
+            tt_filter = " AND (token_type IS NULL OR token_type != 'web')" if has_tt else ""
 
             # 1. Danh sach cac tai khoan READY hoac HIGH_USAGE (< QUOTA_EXHAUSTION_THRESHOLD) va khong bi cooldown
+            # Loai tru token_type='web' vi Cursor IDE AI endpoints tu choi web cookie JWT (401 ERROR_NOT_LOGGED_IN)
             if has_cd:
-                cur.execute("""
+                cur.execute(f"""
                     SELECT id, email, usage_percent, total_spend, status, cooldown_until FROM accounts 
                     WHERE status IN ('READY', 'HIGH_USAGE') 
                       AND (usage_percent IS NULL OR usage_percent < ?)
                       AND (cooldown_until IS NULL OR cooldown_until <= ?)
+                      {tt_filter}
                     ORDER BY usage_percent ASC, id ASC
                 """, (QUOTA_EXHAUSTION_THRESHOLD, now_ts))
             else:
-                cur.execute("""
+                cur.execute(f"""
                     SELECT id, email, usage_percent, total_spend, status FROM accounts 
                     WHERE status IN ('READY', 'HIGH_USAGE') 
                       AND (usage_percent IS NULL OR usage_percent < ?)
+                      {tt_filter}
                     ORDER BY usage_percent ASC, id ASC
                 """, (QUOTA_EXHAUSTION_THRESHOLD,))
             ready_candidates = [dict(r) for r in cur.fetchall()]

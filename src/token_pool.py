@@ -97,6 +97,8 @@ class TokenPoolManager:
                 if "cooldown_until" in cols:
                     where_parts.append("(cooldown_until IS NULL OR cooldown_until <= ?)")
                     params.append(now_ts)
+                if "token_type" in cols:
+                    where_parts.append("(token_type IS NULL OR token_type != 'web')")
 
                 sql = f"""
                     SELECT {', '.join(select_cols)}
@@ -166,6 +168,8 @@ class TokenPoolManager:
             if "cooldown_until" in cols:
                 where_parts.append("(cooldown_until IS NULL OR cooldown_until <= ?)")
                 params.append(now_ts)
+            if "token_type" in cols:
+                where_parts.append("(token_type IS NULL OR token_type != 'web')")
 
             sql = f"""
                 SELECT {', '.join(select_cols)}

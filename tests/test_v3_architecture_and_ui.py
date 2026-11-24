@@ -334,6 +334,101 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_13_interactive_pkce_endpoints_and_web_only_exclusion(self):
+        # 1. Start + status + cancel OAuth PKCE session (without launching real browser)
+        with patch("webbrowser.open", return_value=True), \
+             patch("server._pkce_poll_worker", return_value=None):
+            res = self.client.post("/api/auth/pkce/start", json={"open_browser": False})
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data["success"])
+            self.assertIn("https://cursor.com/loginDeepControl?", data["login_url"])
+            sid = data["session_id"]
+
+            st = self.client.get(f"/api/auth/pkce/status/{sid}").get_json()
+            self.assertEqual(st["status"], "waiting")
+
+            cn = self.client.post(f"/api/auth/pkce/cancel/{sid}").get_json()
+            self.assertEqual(cn["status"], "cancelled")
+
+        # 2. TokenPoolManager must skip token_type='web' so Proxy never sends web-only JWT to IDE AI endpoints
+        tmp = tempfile.mkdtemp(prefix="cr_v3_web_excl_")
+        db_path = os.path.join(tmp, "test.db")
+        try:
+            web_tok = _make_jwt("webonly@test.com")
+            sess_tok = _make_jwt("idesess@test.com")
+            con = sqlite3.connect(db_path)
+            con.execute("""
+                CREATE TABLE accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT,
+                    access_token TEXT,
+                    token_hash TEXT,
+                    token_type TEXT DEFAULT 'unknown',
+                    usage_percent REAL DEFAULT 0.0,
+                    status TEXT DEFAULT 'READY',
+                    cooldown_until INTEGER DEFAULT 0
+                )
+            """)
+            con.execute(
+                "INSERT INTO accounts (email, access_token, token_hash, token_type, usage_percent, status) VALUES (?, ?, ?, 'web', 1.0, 'READY')",
+                ("webonly@test.com", encrypt_token(web_tok), compute_token_hash(web_tok)),
+            )
+            con.execute(
+                "INSERT INTO accounts (email, access_token, token_hash, token_type, usage_percent, status) VALUES (?, ?, ?, 'session', 20.0, 'READY')",
+                ("idesess@test.com", encrypt_token(sess_tok), compute_token_hash(sess_tok)),
+            )
+            con.commit()
+            con.close()
+
+            tp = TokenPoolManager(db_path=db_path)
+            self.assertEqual(tp.get_stats()["ready_count"], 1)
+            picked = tp.get_token_from_cache()
+            self.assertEqual(picked["email"], "idesess@test.com")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_14_safe_storage_encrypt_decrypt_roundtrip_on_at_rest_db(self):
+        from cursor_storage import (
+            CursorStorageManager,
+            encrypt_cursor_safe_storage,
+            decrypt_cursor_safe_storage,
+        )
+        # Verify encrypt/decrypt round-trip when Windows DPAPI key exists
+        tok = _make_jwt("safestorage@test.com")
+        enc = encrypt_cursor_safe_storage(tok)
+        if enc is not None:
+            self.assertTrue(enc.startswith("cursor-safe-storage:v1:"))
+            self.assertEqual(decrypt_cursor_safe_storage(enc), tok)
+
+            # Verify inject_full_profile encrypts when authTokenEncryptionAtRest == 'true'
+            tmp = tempfile.mkdtemp(prefix="cr_v3_ss_")
+            try:
+                vscdb = os.path.join(tmp, "state.vscdb")
+                con = sqlite3.connect(vscdb)
+                con.execute("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+                con.execute("INSERT INTO ItemTable VALUES ('cursor.storage.authTokenEncryptionAtRest', 'true')")
+                con.commit()
+                con.close()
+
+                sm = CursorStorageManager(db_path=vscdb)
+                ok = sm.inject_full_profile(tok, tok, {"email": "safestorage@test.com", "authId": "auth0|ss_user"})
+                self.assertTrue(ok)
+
+                con = sqlite3.connect(vscdb)
+                raw_stored = con.execute("SELECT value FROM ItemTable WHERE key='cursorAuth/accessToken'").fetchone()[0]
+                last_auth = con.execute("SELECT value FROM ItemTable WHERE key='glass.lastSignedInAuthId'").fetchone()[0]
+                con.close()
+                self.assertTrue(raw_stored.startswith("cursor-safe-storage:v1:"))
+                self.assertEqual(last_auth, "auth0|ss_user")
+
+                # And get_active_account decrypts it seamlessly!
+                active = sm.get_active_account()
+                self.assertEqual(active["access_token"], tok)
+                self.assertTrue(active["safe_storage_encrypted"])
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

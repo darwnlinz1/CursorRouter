@@ -85,6 +85,29 @@ def _load_cursor_dpapi_aes_key() -> Optional[bytes]:
     return None
 
 
+def encrypt_cursor_safe_storage(plaintext: Optional[str]) -> Optional[str]:
+    """
+    Encrypt a token into Cursor v0.48+ Electron safeStorage format (`cursor-safe-storage:v1:<b64>`)
+    using Windows DPAPI os_crypt AES-256-GCM key (`v10` + 12B nonce + ciphertext + 16B tag).
+    Returns None if DPAPI key or cryptography is unavailable.
+    """
+    if not plaintext or not isinstance(plaintext, str):
+        return None
+    if plaintext.startswith("cursor-safe-storage:v1:"):
+        return plaintext
+    try:
+        aes_key = _load_cursor_dpapi_aes_key()
+        if not aes_key:
+            return None
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        nonce = os.urandom(12)
+        ct = AESGCM(aes_key).encrypt(nonce, plaintext.encode("utf-8"), None)
+        blob = b"v10" + nonce + ct
+        return "cursor-safe-storage:v1:" + base64.b64encode(blob).decode("ascii")
+    except Exception:
+        return None
+
+
 def decrypt_cursor_safe_storage(value: Optional[str]) -> Optional[str]:
     """
     Transparently decrypt Cursor v0.48+ Electron safeStorage tokens (`cursor-safe-storage:v1:<b64>`).
@@ -355,14 +378,36 @@ class CursorStorageManager:
         cur.execute("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)")
         
         try:
+            # Check if this state.vscdb uses Electron safeStorage encryption at rest (Cursor v0.48+/v2.x+)
+            enc_at_rest = False
+            try:
+                row_enc = cur.execute(
+                    "SELECT value FROM ItemTable WHERE key = 'cursor.storage.authTokenEncryptionAtRest'"
+                ).fetchone()
+                if row_enc and str(row_enc[0]).strip().lower() == "true":
+                    enc_at_rest = True
+            except Exception:
+                pass
+
+            stored_access = access_token
+            stored_refresh = refresh_token
+            if enc_at_rest:
+                enc_a = encrypt_cursor_safe_storage(access_token)
+                if enc_a:
+                    stored_access = enc_a
+                if refresh_token:
+                    enc_r = encrypt_cursor_safe_storage(refresh_token)
+                    if enc_r:
+                        stored_refresh = enc_r
+
             records = [
-                ("cursorAuth/accessToken", access_token),
+                ("cursorAuth/accessToken", stored_access),
                 ("cursorAuth/stripeMembershipType", membership_type),
                 ("cursorAuth/cachedSignUpType", sign_up_type)
             ]
             
-            if refresh_token:
-                records.append(("cursorAuth/refreshToken", refresh_token))
+            if stored_refresh:
+                records.append(("cursorAuth/refreshToken", stored_refresh))
             if email:
                 records.append(("cursorAuth/cachedEmail", email))
             if display_name:
@@ -370,6 +415,8 @@ class CursorStorageManager:
             if auth_id:
                 records.append(("cursorAuth/stripeMembershipAuthId", auth_id))
                 records.append(("adminSettings.cachedAuthId", auth_id))
+                if enc_at_rest:
+                    records.append(("glass.lastSignedInAuthId", auth_id))
                 
             for k, v in records:
                 cur.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (k, str(v)))

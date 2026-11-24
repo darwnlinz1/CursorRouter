@@ -121,6 +121,82 @@
     }
   }
 
+  let _pkcePollTimer = null;
+  let _pkceSessionId = null;
+  let _pkceLoginUrl = '';
+
+  async function startInteractiveOAuthLogin(openBrowser) {
+    cancelInteractiveOAuthLogin(true);
+    U.showToast('Đang tạo link đăng nhập Cursor OAuth PKCE chính thức...', 'loading');
+    try {
+      const { ok, data } = await U.apiFetch('/api/auth/pkce/start', {
+        method: 'POST',
+        json: { open_browser: openBrowser !== false },
+      });
+      if (!ok || !data || !data.success) {
+        U.showToast((data && data.error) || 'Không thể khởi tạo OAuth PKCE', 'error');
+        return;
+      }
+      _pkceSessionId = data.session_id;
+      _pkceLoginUrl = data.login_url;
+
+      const box = document.getElementById('oauth-pkce-banner');
+      const urlEl = document.getElementById('oauth-pkce-url');
+      const stEl = document.getElementById('oauth-pkce-status');
+      if (urlEl) urlEl.value = _pkceLoginUrl;
+      if (stEl) stEl.textContent = 'Đang chờ bạn xác nhận đăng nhập trên trình duyệt (tự động nhận IDE Session 60 ngày)...';
+      if (box) box.classList.remove('hidden');
+
+      U.showToast('Đã tạo phiên OAuth! Hãy bấm "Yes, Log In" trên trình duyệt hoặc copy link mở tab Ẩn danh.', 'info');
+
+      _pkcePollTimer = setInterval(async () => {
+        if (!_pkceSessionId) return;
+        const r = await U.apiFetch(`/api/auth/pkce/status/${encodeURIComponent(_pkceSessionId)}`);
+        if (!r.ok || !r.data) return;
+        const st = r.data.status;
+        if (st === 'completed') {
+          clearInterval(_pkcePollTimer);
+          _pkcePollTimer = null;
+          _pkceSessionId = null;
+          if (box) box.classList.add('hidden');
+          const acc = r.data.account || {};
+          U.showToast(`Đã thêm IDE Session thành công: ${acc.email || 'OK'}!`, 'success');
+          _revealNewlyImportedAccounts();
+          await Promise.allSettled([loadAccounts(), loadCookiesInfo()]);
+        } else if (st === 'error' || st === 'expired' || st === 'cancelled') {
+          clearInterval(_pkcePollTimer);
+          _pkcePollTimer = null;
+          _pkceSessionId = null;
+          if (stEl) stEl.textContent = r.data.error || 'Phiên OAuth đã kết thúc.';
+          if (st !== 'cancelled') U.showToast(r.data.error || 'Phiên OAuth hết hạn', 'warn');
+        }
+      }, 1600);
+    } catch (_) {
+      U.showToast('Lỗi kết nối khi khởi tạo OAuth PKCE', 'error');
+    }
+  }
+
+  function copyOAuthLoginUrl() {
+    if (_pkceLoginUrl) {
+      U.copyToClipboard(_pkceLoginUrl, 'Đã sao chép link OAuth! Dán vào cửa sổ Ẩn danh để đăng nhập tài khoản khác.');
+    }
+  }
+
+  async function cancelInteractiveOAuthLogin(silent) {
+    if (_pkcePollTimer) {
+      clearInterval(_pkcePollTimer);
+      _pkcePollTimer = null;
+    }
+    const sid = _pkceSessionId;
+    _pkceSessionId = null;
+    const box = document.getElementById('oauth-pkce-banner');
+    if (box) box.classList.add('hidden');
+    if (sid) {
+      try { await U.apiFetch(`/api/auth/pkce/cancel/${encodeURIComponent(sid)}`, { method: 'POST' }); } catch (_) {}
+      if (!silent) U.showToast('Đã hủy phiên chờ đăng nhập OAuth', 'info');
+    }
+  }
+
   async function captureActiveCursorAccount() {
     U.showToast('Đang đọc & giải mã phiên Cursor IDE hiện tại (DPAPI safeStorage)...', 'loading');
     try {
@@ -1070,6 +1146,9 @@
     switchIngestTab,
     onPasteInputChanged,
     submitPastedCookies,
+    startInteractiveOAuthLogin,
+    copyOAuthLoginUrl,
+    cancelInteractiveOAuthLogin,
     captureActiveCursorAccount,
     openCookieFolder,
     copyCookieFolderPath,

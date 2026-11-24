@@ -780,6 +780,138 @@ def api_cookies_paste():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+_PKCE_SESSIONS = {}
+_PKCE_SESSIONS_LOCK = threading.Lock()
+
+
+def _pkce_poll_worker(session_id: str, flow_uuid: str, verifier: str):
+    """Background poller for official interactive Cursor OAuth PKCE desktop sign-in."""
+    poll_url = f"https://api2.cursor.sh/auth/poll?uuid={flow_uuid}&verifier={verifier}"
+    deadline = time.time() + 240.0  # 4 minutes
+    while time.time() < deadline:
+        with _PKCE_SESSIONS_LOCK:
+            sess = _PKCE_SESSIONS.get(session_id)
+            if not sess or sess.get("status") != "waiting":
+                return
+        try:
+            resp = requests.get(poll_url, headers={"Content-Type": "application/json"}, timeout=8)
+            if resp.status_code == 200:
+                data = resp.json() if resp.text else {}
+                if isinstance(data, dict) and data.get("accessToken"):
+                    saved = pool.upsert_session_account(
+                        access_token=data["accessToken"],
+                        refresh_token=data.get("refreshToken"),
+                        source="oauth_pkce",
+                    )
+                    with _PKCE_SESSIONS_LOCK:
+                        sess = _PKCE_SESSIONS.get(session_id)
+                        if sess:
+                            if saved.get("success"):
+                                sess["status"] = "completed"
+                                sess["account"] = saved
+                                sess["message"] = saved.get("message")
+                            else:
+                                sess["status"] = "error"
+                                sess["error"] = saved.get("error", "Không thể lưu tài khoản")
+                    _record_system_event("oauth_pkce_success", f"Added IDE session via OAuth: {saved.get('email')}")
+                    return
+            elif resp.status_code == 403:
+                with _PKCE_SESSIONS_LOCK:
+                    sess = _PKCE_SESSIONS.get(session_id)
+                    if sess:
+                        sess["status"] = "error"
+                        sess["error"] = "Phiên OAuth bị từ chối hoặc đã hết hạn (403)."
+                return
+        except Exception:
+            pass
+        time.sleep(1.5)
+
+    with _PKCE_SESSIONS_LOCK:
+        sess = _PKCE_SESSIONS.get(session_id)
+        if sess and sess.get("status") == "waiting":
+            sess["status"] = "expired"
+            sess["error"] = "Hết thời gian chờ đăng nhập (4 phút). Vui lòng tạo link mới."
+
+
+@app.route("/api/auth/pkce/start", methods=["POST"])
+def api_pkce_start():
+    """
+    Start an official interactive Cursor Desktop OAuth PKCE flow.
+    Opens/returns https://cursor.com/loginDeepControl?challenge=...&uuid=...&mode=login
+    and polls api2.cursor.sh/auth/poll in background to obtain a genuine 60-day IDE `type: "session"` token.
+    """
+    try:
+        from pkce_auth import generate_pkce_credentials
+        import webbrowser
+
+        data = request.get_json(silent=True) or {}
+        open_browser = bool(data.get("open_browser", True))
+        pkce = generate_pkce_credentials()
+        session_id = pkce["uuid"]
+        login_url = f"https://cursor.com/loginDeepControl?challenge={pkce['challenge']}&uuid={pkce['uuid']}&mode=login"
+
+        with _PKCE_SESSIONS_LOCK:
+            # Prune expired entries
+            now = time.time()
+            stale = [k for k, v in _PKCE_SESSIONS.items() if now - v.get("created_at", 0) > 600]
+            for k in stale:
+                _PKCE_SESSIONS.pop(k, None)
+            _PKCE_SESSIONS[session_id] = {
+                "session_id": session_id,
+                "login_url": login_url,
+                "status": "waiting",
+                "created_at": now,
+                "account": None,
+                "error": None,
+            }
+
+        t = threading.Thread(
+            target=_pkce_poll_worker,
+            args=(session_id, pkce["uuid"], pkce["verifier"]),
+            daemon=True,
+            name=f"PKCEPoll-{session_id[:8]}",
+        )
+        t.start()
+
+        opened = False
+        if open_browser:
+            try:
+                webbrowser.open(login_url)
+                opened = True
+            except Exception:
+                opened = False
+
+        _record_system_event("oauth_pkce_start", f"Started interactive OAuth PKCE session {session_id[:8]}")
+        return jsonify({
+            "success": True,
+            "session_id": session_id,
+            "login_url": login_url,
+            "opened_browser": opened,
+            "status": "waiting",
+            "message": "Đã tạo link đăng nhập Cursor OAuth! Hãy xác nhận trên trình duyệt (hoặc mở tab Ẩn danh để thêm tài khoản khác).",
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/auth/pkce/status/<session_id>", methods=["GET"])
+def api_pkce_status(session_id):
+    with _PKCE_SESSIONS_LOCK:
+        sess = _PKCE_SESSIONS.get(session_id)
+        if not sess:
+            return jsonify({"success": False, "status": "not_found", "error": "Không tìm thấy phiên OAuth"}), 404
+        return jsonify({"success": True, **sess})
+
+
+@app.route("/api/auth/pkce/cancel/<session_id>", methods=["POST"])
+def api_pkce_cancel(session_id):
+    with _PKCE_SESSIONS_LOCK:
+        sess = _PKCE_SESSIONS.get(session_id)
+        if sess and sess.get("status") == "waiting":
+            sess["status"] = "cancelled"
+    return jsonify({"success": True, "status": "cancelled"})
+
+
 @app.route("/api/accounts/capture-active", methods=["POST"])
 def api_capture_active_session():
     """Capture the currently signed-in Cursor IDE desktop session token into the encrypted pool."""
