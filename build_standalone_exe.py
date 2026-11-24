@@ -2,7 +2,7 @@
 Standalone EXE Builder for Cursor Manager (PyInstaller)
 ======================================================
 Compiles CursorThings native desktop application into a standalone Windows binary:
-- Preserves templates, cookies folder, and static configurations.
+- Preserves templates, static assets, and runtime configurations.
 - Bundles Edge WebView2 native runtime support.
 - Generates build manifest with SHA-256 integrity hash for Auto-Updater.
 """
@@ -70,7 +70,7 @@ def build_executable(onefile: bool = True, windowed: bool = False):
     else:
         cmd.append("--console")
 
-    # Add read-only bundled directories (never bundle user Cookies/ into binary)
+    # Add read-only bundled assets only (never bundle user SQLite DBs or keys into binary)
     if os.path.exists(templates_dir):
         cmd.extend(["--add-data", f"{templates_dir};templates"])
     if os.path.exists(static_dir):
@@ -149,7 +149,7 @@ def build_executable(onefile: bool = True, windowed: bool = False):
             "sha256": sha256_hash,
             "mandatory": False,
             "min_version": "2.0.0",
-            "changelog": "1. Async HTTP/2 Multiplexed Sync Engine (~20x faster).\n2. LRU Decrypt Cache & Portable Data Persistence.\n3. Offline-First Modular Cockpit UI v3.0.\n4. Quick Paste Multi-Format Cookie Ingestion.\n5. Unified Anti-Detect & Live Proxy Telemetry."
+            "changelog": "1. Pure Official OAuth 2.0 PKCE Onboarding + Native DPAPI cursor-safe-storage:v1 Support.\n2. Async HTTP/2 Multiplexed Sync Engine (~18.6x faster).\n3. Bounded LRU Decrypt Cache & Portable Data Persistence.\n4. Offline-First Modular Cockpit UI v3.1.\n5. Zero-Downtime Rotating Proxy & Anti-Detect Hardware Isolation."
         }
         manifest_path = os.path.join(DIST_DIR, "manifest.json")
         with open(manifest_path, "w", encoding="utf-8") as f:

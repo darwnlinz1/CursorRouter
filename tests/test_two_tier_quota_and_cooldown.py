@@ -27,14 +27,12 @@ import server
 
 @pytest.fixture
 def clean_pool(tmp_path):
-    temp_cookies = tmp_path / "Cookies"
-    temp_cookies.mkdir()
     test_db = str(tmp_path / "test_accounts.db")
     orig_db = account_pool.DB_FILE
     orig_server_pool = getattr(server, "pool", None)
-    
+
     account_pool.DB_FILE = test_db
-    pool = AccountPoolManager(cookies_dir=str(temp_cookies))
+    pool = AccountPoolManager()
     server.pool = pool
 
     yield pool

@@ -1,32 +1,25 @@
 """
-High-Speed Async HTTP/2 Sync Engine for CursorRouter (v3.0)
-===========================================================
+High-Speed Async HTTP/2 OAuth Sync Engine for CursorRouter (v3.1)
+=================================================================
 Benchmark-verified winning architecture:
-- Primary transport: persistent `httpx.AsyncClient(http2=True)` multiplexing all
-  concurrent RPCs over 1-2 TLS connections (~345ms for 8 accounts / 20x faster
-  than legacy unpooled requests).
+- Primary transport: persistent `httpx.AsyncClient(http2=True, max_connections=4)`
+  multiplexing concurrent RPCs over warm TLS connections (~372ms for 8 accounts /
+  ~18.6x faster than legacy unpooled requests).
 - Automatic fallback: `aiohttp.ClientSession` pooled HTTP/1.1 if `httpx`+`h2`
-  is unavailable in minimal environments.
-- Zero false skips: NEVER discards tokens based solely on local JWT `exp`
-  (Cursor accepts some legacy session tokens past JWT `exp`).
-- Fast Direct-JWT First: extracts embedded JWT from `WorkosCursorSessionToken`
-  in ~0.01ms and validates immediately via multiplexed HTTP/2; only runs
-  CSRF-authenticated PKCE exchange if direct JWT is absent or rejected.
-- Smart RPC Selection:
-  * Quota-only accounts (already have email/display_name): 1 RPC (`GetCurrentPeriodUsage`).
-  * Unhydrated accounts (missing email/display_name): 2 parallel RPCs (`GetMe` + `GetCurrentPeriodUsage`),
-    eliminating the redundant 3rd `GetEmail` call (`GetMe` already returns `email`, `firstName`,
-    `lastName`, `authId`, `membershipType`, `signupSource`).
+  is unavailable.
+- Pure OAuth Session Sync: validates stored OAuth `access_token` directly against
+  `api2.cursor.sh` (`GetCurrentPeriodUsage`, plus parallel `GetMe` when hydrating
+  missing email/name/auth_id).
 - Shared per-host 429/503 Retry-After barrier so concurrent tasks never dogpile.
 """
 
-import os
-import time
-import random
 import asyncio
 import atexit
+import os
+import random
 import threading
-from typing import Dict, Any, List, Optional, Callable, Tuple
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 try:
     import httpx
@@ -43,22 +36,16 @@ except Exception:
     aiohttp = None
     HAS_AIOHTTP = False
 
-from pkce_auth import extract_jwt_from_session_cookie, generate_pkce_credentials
 from cursor_storage import detect_token_type
 
 API_BASE_URL = os.getenv("CURSOR_BACKEND_URL", "https://api2.cursor.sh").rstrip("/")
-WEB_BASE_URL = "https://cursor.com"
 EP_ME = f"{API_BASE_URL}/aiserver.v1.DashboardService/GetMe"
 EP_USAGE = f"{API_BASE_URL}/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
 
 DEFAULT_HEADERS = {
     "Content-Type": "application/json",
     "Connect-Protocol-Version": "1",
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/134.0.0.0 Safari/537.36"
-    ),
+    "User-Agent": "CursorRouter/3.1 (OAuth-H2-Sync)",
 }
 
 
@@ -75,7 +62,6 @@ class _HostRateBarrier:
             await asyncio.sleep(min(until - now, 10.0))
 
     def note_backoff(self, host: str, retry_after: Optional[str], attempt: int):
-        delay = 0.0
         if retry_after and str(retry_after).strip().isdigit():
             delay = min(float(retry_after), 10.0)
         else:
@@ -89,7 +75,7 @@ class _PersistentAsyncRuntime:
     """
     Holds a dedicated daemon asyncio event loop + persistent HTTP/2 client so TLS
     handshakes and HTTP/2 ALPN negotiation happen ONCE, coalescing all subsequent
-    concurrent syncs onto 1-4 warm multiplexed connections (~400ms vs ~6,900ms legacy).
+    concurrent syncs onto 1-4 warm multiplexed connections.
     """
 
     def __init__(self):
@@ -135,7 +121,7 @@ class _PersistentAsyncRuntime:
                     headers=DEFAULT_HEADERS,
                 )
             return "httpx", self._httpx_client
-        elif HAS_AIOHTTP:
+        if HAS_AIOHTTP:
             if self._aiohttp_session is None or self._aiohttp_session.closed:
                 connector = aiohttp.TCPConnector(limit=32, limit_per_host=16, ttl_dns_cache=300)
                 timeout = aiohttp.ClientTimeout(total=timeout_sec, connect=6.0)
@@ -188,8 +174,8 @@ atexit.register(_PERSISTENT_RUNTIME.close)
 
 class AsyncCursorSyncEngine:
     """
-    Multiplexed async synchronization engine supporting persistent HTTP/2 `httpx`
-    (primary, ~400ms warm) and pooled `aiohttp` HTTP/1.1 (fallback).
+    Multiplexed async OAuth synchronization engine supporting persistent HTTP/2 `httpx`
+    (primary, ~370ms warm) and pooled `aiohttp` HTTP/1.1 (fallback).
     """
 
     def __init__(self, max_concurrency: int = 16, timeout_sec: float = 10.0):
@@ -204,9 +190,7 @@ class AsyncCursorSyncEngine:
         on_result: Optional[Callable[[Dict[str, Any]], None]] = None,
         stop_check: Optional[Callable[[], bool]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Synchronously execute the persistent async HTTP/2 batch sync over account dicts.
-        """
+        """Synchronously execute the persistent async HTTP/2 batch sync over OAuth accounts."""
         if not accounts:
             return []
         return _PERSISTENT_RUNTIME.run(
@@ -226,7 +210,6 @@ class AsyncCursorSyncEngine:
         stop_check: Optional[Callable[[], bool]],
     ) -> List[Dict[str, Any]]:
         api_sem = asyncio.Semaphore(self.max_concurrency)
-        web_sem = asyncio.Semaphore(min(6, self.max_concurrency))
         barrier = _HostRateBarrier()
         results: List[Dict[str, Any]] = []
 
@@ -240,7 +223,6 @@ class AsyncCursorSyncEngine:
                 client_kind=client_kind,
                 client=client,
                 api_sem=api_sem,
-                web_sem=web_sem,
                 barrier=barrier,
                 hydrate_missing_profile=hydrate_missing_profile,
                 on_result=on_result,
@@ -297,93 +279,12 @@ class AsyncCursorSyncEngine:
                 return 0, None, str(e)
         return 0, None, "max_retries_exceeded"
 
-    async def _async_pkce_exchange(
-        self,
-        client_kind: str,
-        client: Any,
-        cookie_val: str,
-        web_sem: asyncio.Semaphore,
-        api_sem: asyncio.Semaphore,
-        barrier: _HostRateBarrier,
-    ) -> Optional[Dict[str, str]]:
-        """Async CSRF-authenticated PKCE exchange (only called if direct JWT absent or 401)."""
-        pkce = generate_pkce_credentials()
-        cb_url = f"{WEB_BASE_URL}/api/auth/loginDeepCallbackControl"
-        csrf_url = f"{WEB_BASE_URL}/api/csrf-token"
-        poll_url = f"{API_BASE_URL}/auth/poll?uuid={pkce['uuid']}&verifier={pkce['verifier']}"
-
-        async with web_sem:
-            await barrier.wait_if_paused("cursor.com")
-            csrf_tok = None
-            csrf_cookie = None
-            try:
-                csrf_hdrs = {"Cookie": f"WorkosCursorSessionToken={cookie_val}"}
-                if client_kind == "httpx":
-                    r_csrf = await client.get(csrf_url, headers=csrf_hdrs)
-                    if r_csrf.status_code == 200:
-                        csrf_tok = (r_csrf.json() or {}).get("token")
-                        csrf_cookie = r_csrf.cookies.get("csrf-token")
-                else:
-                    async with client.get(csrf_url, headers=csrf_hdrs) as r_csrf:
-                        if r_csrf.status == 200:
-                            csrf_tok = (await r_csrf.json()).get("token")
-                            c = r_csrf.cookies.get("csrf-token")
-                            csrf_cookie = c.value if c else None
-            except Exception:
-                pass
-
-            cookie_hdr = f"WorkosCursorSessionToken={cookie_val}"
-            cb_hdrs = {
-                "Origin": WEB_BASE_URL,
-                "Referer": f"{WEB_BASE_URL}/loginDeepControl?challenge={pkce['challenge']}&uuid={pkce['uuid']}&mode=login",
-                "Content-Type": "application/json",
-                "Cookie": cookie_hdr,
-            }
-            if csrf_tok:
-                cb_hdrs["x-csrf-token"] = csrf_tok
-                cb_hdrs["Cookie"] = f"{cookie_hdr}; csrf-token={csrf_cookie or csrf_tok}"
-
-            status, _, _ = await self._post_json(
-                client_kind, client, cb_url, cb_hdrs,
-                {"uuid": pkce["uuid"], "challenge": pkce["challenge"]},
-                "cursor.com", barrier,
-            )
-            if status != 200:
-                return None
-
-        # Adaptive fast poll on api2.cursor.sh
-        schedule = (0.15, 0.25, 0.4, 0.6, 0.8, 1.0)
-        async with api_sem:
-            for delay in schedule:
-                await asyncio.sleep(delay)
-                try:
-                    if client_kind == "httpx":
-                        r_poll = await client.get(poll_url)
-                        if r_poll.status_code == 200:
-                            data = r_poll.json()
-                            if isinstance(data, dict) and data.get("accessToken"):
-                                return data
-                        elif r_poll.status_code == 403:
-                            return None
-                    else:
-                        async with client.get(poll_url) as r_poll:
-                            if r_poll.status == 200:
-                                data = await r_poll.json()
-                                if isinstance(data, dict) and data.get("accessToken"):
-                                    return data
-                            elif r_poll.status == 403:
-                                return None
-                except Exception:
-                    continue
-        return None
-
     async def _sync_one(
         self,
         acc: Dict[str, Any],
         client_kind: str,
         client: Any,
         api_sem: asyncio.Semaphore,
-        web_sem: asyncio.Semaphore,
         barrier: _HostRateBarrier,
         hydrate_missing_profile: bool,
         on_result: Optional[Callable[[Dict[str, Any]], None]],
@@ -394,103 +295,42 @@ class AsyncCursorSyncEngine:
 
         t0 = time.perf_counter()
         acc_id = acc["id"]
-        token = acc.get("access_token") or ""
-        refresh_token = acc.get("refresh_token") or ""
-        cookie_full = acc.get("cookie_full") or ""
+        token = (acc.get("access_token") or "").strip()
         email = acc.get("email")
         display_name = acc.get("display_name")
         auth_id = acc.get("auth_id")
-        token_updated = False
-
-        # Step 1: Resolve token for newly imported/PENDING cookie.
-        # - If pasted token is already a desktop IDE `session` JWT -> use directly (0ms).
-        # - If it is a WorkOS `web` cookie -> try CSRF-authenticated PKCE ONCE to upgrade
-        #   fresh cookies into genuine `type: "session"` IDE tokens! If Cursor rejects with
-        #   403 FRESH_SIGN_IN_REQUIRED, gracefully fall back to the embedded `type: "web"` JWT
-        #   so quota/email still sync cleanly and tag token_type='web'.
-        pkce_upgrade_failed = False
-        if not token and cookie_full:
-            direct_jwt = extract_jwt_from_session_cookie(cookie_full)
-            direct_type = detect_token_type(direct_jwt) if direct_jwt else "unknown"
-            if direct_jwt and direct_type == "session":
-                token = direct_jwt
-                refresh_token = refresh_token or direct_jwt
-                token_updated = True
-            else:
-                pkce_res = await self._async_pkce_exchange(client_kind, client, cookie_full, web_sem, api_sem, barrier)
-                if pkce_res and pkce_res.get("accessToken"):
-                    token = pkce_res["accessToken"]
-                    refresh_token = pkce_res.get("refreshToken") or refresh_token
-                    token_updated = True
-                elif direct_jwt:
-                    token = direct_jwt
-                    refresh_token = refresh_token or direct_jwt
-                    token_updated = True
-                    pkce_upgrade_failed = True
-                else:
-                    res = {
-                        "id": acc_id,
-                        "email": email,
-                        "display_name": display_name,
-                        "auth_id": auth_id,
-                        "token_type": "unknown",
-                        "success": False,
-                        "expired": True,
-                        "http_status": 401,
-                        "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
-                    }
-                    if on_result:
-                        on_result(res)
-                    return res
 
         if not token:
             res = {
                 "id": acc_id,
                 "email": email,
+                "display_name": display_name,
+                "auth_id": auth_id,
+                "token_type": "unknown",
                 "success": False,
                 "expired": True,
                 "http_status": 401,
                 "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
+                "transport": self.transport_name,
             }
             if on_result:
                 on_result(res)
             return res
 
         need_me = hydrate_missing_profile and (not email or not display_name or not auth_id)
+        hdrs = {"Authorization": f"Bearer {token}"}
 
-        async def _call_usage_and_me(tok: str):
-            hdrs = {"Authorization": f"Bearer {tok}"}
-            async with api_sem:
-                if need_me:
-                    (u_st, u_data, u_txt), (m_st, m_data, _) = await asyncio.gather(
-                        self._post_json(client_kind, client, EP_USAGE, hdrs, {}, "api2.cursor.sh", barrier),
-                        self._post_json(client_kind, client, EP_ME, hdrs, {}, "api2.cursor.sh", barrier),
-                    )
-                    return u_st, u_data, u_txt, m_st, m_data
-                else:
-                    u_st, u_data, u_txt = await self._post_json(
-                        client_kind, client, EP_USAGE, hdrs, {}, "api2.cursor.sh", barrier
-                    )
-                    return u_st, u_data, u_txt, 0, None
-
-        u_st, u_data, u_txt, m_st, m_data = await _call_usage_and_me(token)
-
-        # Step 2: Auto-refresh via cookie on 401/403
-        # If the token that got 401 IS ALREADY the exact JWT embedded inside cookie_full,
-        # the WorkosCursorSessionToken itself is expired/revoked — skip wasting 1-2s on PKCE!
-        if u_st in (401, 403) and cookie_full:
-            alt_tok = extract_jwt_from_session_cookie(cookie_full)
-            tried_new = None
-            if alt_tok and alt_tok != token:
-                tried_new = {"accessToken": alt_tok, "refreshToken": alt_tok}
-            elif not alt_tok:
-                tried_new = await self._async_pkce_exchange(client_kind, client, cookie_full, web_sem, api_sem, barrier)
-
-            if tried_new and tried_new.get("accessToken"):
-                token = tried_new["accessToken"]
-                refresh_token = tried_new.get("refreshToken") or refresh_token
-                token_updated = True
-                u_st, u_data, u_txt, m_st, m_data = await _call_usage_and_me(token)
+        async with api_sem:
+            if need_me:
+                (u_st, u_data, u_txt), (m_st, m_data, _) = await asyncio.gather(
+                    self._post_json(client_kind, client, EP_USAGE, hdrs, {}, "api2.cursor.sh", barrier),
+                    self._post_json(client_kind, client, EP_ME, hdrs, {}, "api2.cursor.sh", barrier),
+                )
+            else:
+                u_st, u_data, u_txt = await self._post_json(
+                    client_kind, client, EP_USAGE, hdrs, {}, "api2.cursor.sh", barrier
+                )
+                m_st, m_data = 0, None
 
         latency_ms = round((time.perf_counter() - t0) * 1000, 1)
 
@@ -516,16 +356,13 @@ class AsyncCursorSyncEngine:
                 membership_type = m_data.get("membershipType") or "free"
 
             tok_type = detect_token_type(token)
-            if tok_type == "web" and pkce_upgrade_failed and not display_msg:
-                display_msg = "Web Cookie Only (FRESH_SIGN_IN_REQUIRED — dùng cookie vừa login mới hoặc Lưu Acc từ Cursor để chat IDE)"
-
             res = {
                 "id": acc_id,
                 "email": email,
                 "display_name": display_name,
                 "auth_id": auth_id,
-                "access_token": token if token_updated else None,
-                "refresh_token": refresh_token if token_updated else None,
+                "access_token": None,
+                "refresh_token": None,
                 "token_type": tok_type,
                 "usage_percent": usage_pct,
                 "auto_percent_used": auto_pct,
@@ -549,6 +386,7 @@ class AsyncCursorSyncEngine:
                 "success": False,
                 "expired": True,
                 "http_status": u_st,
+                "display_message": "Phiên OAuth đã hết hạn — bấm + Đăng Nhập OAuth để gia hạn",
                 "latency_ms": latency_ms,
                 "transport": self.transport_name,
             }

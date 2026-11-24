@@ -22,9 +22,9 @@ _CURSOR_SAFE_STORAGE_KEY_LOADED = False
 
 def detect_token_type(token: Optional[str]) -> str:
     """
-    Identify Cursor JWT token class:
+    Identify Cursor OAuth JWT token class:
       - 'session': Desktop IDE OAuth session token (works on AI Chat + GetUsableModels + Quota)
-      - 'web': WorkOS web cookie token (works on Dashboard/Quota/GetMe, rejected by IDE AI endpoints)
+      - 'web': Web-only session token (rejected by IDE AI endpoints)
       - 'unknown': Missing / non-JWT / legacy token without explicit type claim
     """
     payload = decode_jwt_payload(token)

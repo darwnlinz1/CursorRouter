@@ -1,9 +1,9 @@
 """
-CursorRouter - Unified Path & Persistence Resolver
-==================================================
+CursorRouter - Unified Path & Persistence Resolver (v3.1 Pure OAuth)
+====================================================================
 Cleanly separates read-only bundled assets (templates/, static/) from writable
-persistent user data (cursor_accounts.db, .cursor_master.key, Cookies/, configs,
-and .updates/) across both development checkouts and PyInstaller --onefile builds.
+persistent user data (cursor_accounts.db, .cursor_master.key, configs, and .updates/)
+across both development checkouts and PyInstaller --onefile builds.
 """
 
 import os
@@ -41,7 +41,7 @@ def get_data_dir() -> str:
     - Honors CURSOR_ROUTER_DATA_DIR env override when set.
     - In frozen --onefile mode: prefers the directory next to the .exe (portable mode)
       if writable; otherwise falls back to %LOCALAPPDATA%\\CursorRouter (or %APPDATA%).
-    - In development / pytest mode: returns repository root for 100% backward compatibility.
+    - In development / pytest mode: returns repository root for backward compatibility.
     """
     env_dir = os.getenv("CURSOR_ROUTER_DATA_DIR")
     if env_dir:
@@ -72,14 +72,6 @@ def get_db_path() -> str:
     return os.path.abspath(
         os.getenv("CURSOR_ACCOUNTS_DB", os.path.join(get_data_dir(), "cursor_accounts.db"))
     )
-
-
-def get_cookies_dir(custom: Optional[str] = None) -> str:
-    if custom:
-        if os.path.isabs(custom):
-            return os.path.abspath(custom)
-        return os.path.abspath(os.path.join(get_data_dir(), custom))
-    return os.path.abspath(os.path.join(get_data_dir(), "Cookies"))
 
 
 def get_updates_dir() -> str:

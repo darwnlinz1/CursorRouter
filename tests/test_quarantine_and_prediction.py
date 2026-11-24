@@ -9,10 +9,10 @@ from account_pool import AccountPoolManager, DB_FILE
 import server
 
 
-class TestQuarantineAndPrediction(unittest.TestCase):
+class TestOAuthCleanupAndPrediction(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
-        self.pool = AccountPoolManager(cookies_dir=self.tmp_dir)
+        self.pool = AccountPoolManager()
         self.app = server.app.test_client()
         self.app.testing = True
 
@@ -25,78 +25,63 @@ class TestQuarantineAndPrediction(unittest.TestCase):
             except Exception:
                 pass
 
-    def test_01_quarantine_empty_and_blank_cookie_files(self):
-        """0-byte and blank cookie files must be quarantined to Archive_Corrupted."""
-        empty_file = os.path.join(self.tmp_dir, "empty_cookie.txt")
-        with open(empty_file, "w", encoding="utf-8") as f:
-            pass  # 0 bytes
-
-        blank_file = os.path.join(self.tmp_dir, "blank_cookie.txt")
-        with open(blank_file, "w", encoding="utf-8") as f:
-            f.write("   \n\t   \n")  # whitespace only
-
-        valid_file = os.path.join(self.tmp_dir, "valid_cookie.txt")
-        with open(valid_file, "w", encoding="utf-8") as f:
-            f.write("valid_session_cookie_token_1234567890")
-
-        quarantined = self.pool.quarantine_corrupted_cookies()
-        self.assertEqual(quarantined, 2)
-
-        arch_dir = os.path.join(self.tmp_dir, "Archive_Corrupted")
-        self.assertTrue(os.path.exists(arch_dir))
-        self.assertTrue(os.path.exists(os.path.join(arch_dir, "empty_cookie.txt")))
-        self.assertTrue(os.path.exists(os.path.join(arch_dir, "blank_cookie.txt")))
-        # Valid file stays in cookies dir
-        self.assertTrue(os.path.exists(valid_file))
-
-    def test_02_quarantine_expired_account_cookie(self):
-        """Cookie file corresponding to an EXPIRED account in DB must be quarantined."""
-        exp_file = os.path.join(self.tmp_dir, "expired_user@test.com.txt")
-        with open(exp_file, "w", encoding="utf-8") as f:
-            f.write("expired_cookie_token_sample")
-
+    def test_01_delete_invalid_accounts_removes_expired_and_tokenless_rows(self):
+        """EXPIRED and empty-token OAuth rows must be cleaned up cleanly from SQLite."""
         con = sqlite3.connect(DB_FILE, timeout=30.0)
         cur = con.cursor()
-        cur.execute("DELETE FROM accounts WHERE email = 'expired_user@test.com'")
+        cur.execute("DELETE FROM accounts WHERE email IN ('expired_oauth@test.com', 'valid_oauth@test.com')")
         cur.execute("""
-            INSERT INTO accounts (file_name, email, usage_percent, total_spend, status)
-            VALUES ('expired_user@test.com.txt', 'expired_user@test.com', 0.0, 0.0, 'EXPIRED')
+            INSERT INTO accounts (file_name, email, access_token, usage_percent, total_spend, status)
+            VALUES
+                ('oauth_expired_clean.oauth', 'expired_oauth@test.com', '', 0.0, 0.0, 'EXPIRED'),
+                ('oauth_valid_keep.oauth', 'valid_oauth@test.com', 'eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoic2Vzc2lvbiJ9.sig', 15.0, 30.0, 'READY')
         """)
         con.commit()
         con.close()
 
         try:
-            count = self.pool.quarantine_corrupted_cookies()
-            self.assertGreaterEqual(count, 1)
+            deleted = self.pool.delete_invalid_accounts()
+            self.assertGreaterEqual(deleted, 1)
 
-            arch_dir = os.path.join(self.tmp_dir, "Archive_Corrupted")
-            self.assertTrue(os.path.exists(os.path.join(arch_dir, "expired_user@test.com.txt")))
-            self.assertFalse(os.path.exists(exp_file))
+            con = sqlite3.connect(DB_FILE, timeout=30.0)
+            cur = con.cursor()
+            cur.execute("SELECT email FROM accounts WHERE email IN ('expired_oauth@test.com', 'valid_oauth@test.com')")
+            remaining = {r[0] for r in cur.fetchall()}
+            con.close()
+
+            self.assertNotIn("expired_oauth@test.com", remaining)
+            self.assertIn("valid_oauth@test.com", remaining)
         finally:
             con = sqlite3.connect(DB_FILE, timeout=30.0)
             cur = con.cursor()
-            cur.execute("DELETE FROM accounts WHERE email = 'expired_user@test.com'")
+            cur.execute("DELETE FROM accounts WHERE email IN ('expired_oauth@test.com', 'valid_oauth@test.com')")
             con.commit()
             con.close()
 
-    def test_03_quarantine_api_endpoint(self):
-        """POST /api/cookies/quarantine triggers quarantine and returns count."""
-        with patch.object(server.pool, "quarantine_corrupted_cookies", return_value=4):
-            resp = self.app.post("/api/cookies/quarantine")
+    def test_02_clean_invalid_api_endpoint(self):
+        """POST /api/accounts/clean-invalid triggers expired OAuth session cleanup."""
+        with patch.object(server.pool, "delete_invalid_accounts", return_value=4):
+            resp = self.app.post("/api/accounts/clean-invalid")
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
             self.assertTrue(data["success"])
-            self.assertEqual(data["quarantined"], 4)
-            self.assertIn("Archive_Corrupted", data["message"])
+            self.assertEqual(data["deleted"], 4)
 
-    def test_04_cookies_info_includes_archived_count(self):
-        """GET /api/cookies/info must return archived_count."""
-        resp = self.app.get("/api/cookies/info")
+    def test_03_pool_summary_returns_oauth_metrics(self):
+        """GET /api/pool/summary must return auth_mode='oauth_pkce' and pool tier metrics."""
+        resp = self.app.get("/api/pool/summary")
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertTrue(data["success"])
-        self.assertIn("archived_count", data)
-        self.assertIsInstance(data["archived_count"], int)
+        self.assertEqual(data["auth_mode"], "oauth_pkce")
+        for key in ("total_accounts", "valid_tokens", "session_tokens", "ready_count", "tier1_count", "tier2_count", "exhausted_count", "pending_count", "expired_count"):
+            self.assertIn(key, data)
+            self.assertIsInstance(data[key], int)
+
+    def test_04_legacy_cookie_routes_removed(self):
+        """Legacy /api/cookies/* endpoints must no longer exist in v3.1 Pure OAuth."""
+        self.assertEqual(self.app.get("/api/cookies/info").status_code, 404)
+        self.assertEqual(self.app.post("/api/cookies/quarantine").status_code, 404)
 
     def test_05_predict_account_exhaustion_burn_rate(self):
         """predict_account_exhaustion computes burn rate and time-to-exhaustion."""

@@ -100,7 +100,7 @@ class AutoUpdater:
 
     def __init__(
         self,
-        current_version: str = "3.0.0",
+        current_version: str = "3.1.0",
         manifest_url: Optional[str] = None,
         storage_dir: Optional[str] = None
     ):
@@ -405,5 +405,5 @@ _global_updater: Optional[AutoUpdater] = None
 def get_updater() -> AutoUpdater:
     global _global_updater
     if _global_updater is None:
-        _global_updater = AutoUpdater(current_version="3.0.0")
+        _global_updater = AutoUpdater(current_version="3.1.0")
     return _global_updater

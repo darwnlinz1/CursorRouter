@@ -1,19 +1,20 @@
 """
-CursorRouter v3.0 Regression Test Suite
-=======================================
+CursorRouter v3.1 Pure OAuth Architecture & Offline UI Regression Suite
+=======================================================================
 Covers:
-- Multi-format cookie parsing (Netscape TSV + comments, JSON array, Cookie header, email|cookie, raw)
-- Direct Session JWT extraction from WorkosCursorSessionToken
-- POST /api/cookies/paste instant clipboard ingestion
+- Pure Official OAuth PKCE client & interactive API (/api/auth/pkce/*)
+- 1-Click Capture Active Cursor IDE Session (/api/accounts/capture-active)
+- Direct OAuth session token restore (/api/accounts/import-token)
+- OAuth pool summary (/api/pool/summary) & HTTP/2 sync trigger (/api/accounts/sync-all)
 - GET /api/dashboard/snapshot 1-RTT state & delta versioning
 - GET /api/events SSE stream handshake
-- TokenPoolManager decrypting enc:v1: tokens & blind token_hash rate-limit updates
+- TokenPoolManager decrypting enc:v1: tokens, excluding web-only tokens, and blind token_hash updates
+- Native Windows DPAPI cursor-safe-storage:v1 encrypt/decrypt round-trip on authTokenEncryptionAtRest DBs
 - token_cipher bounded LRU cache correctness
 - String-aware JSONC parsing (preserves http:// URLs inside strings)
 - app_paths data/resource resolution
 - Anti-detect native_standard preservation
-- /api/cursor/network-test (requests import & proxy_instance.is_running())
-- Secret redaction on /api/accounts & /api/status
+- /api/cursor/network-test & secret redaction on /api/accounts & /api/status
 - 100% offline local static assets (zero Tailwind CDN / Google Fonts)
 """
 
@@ -29,9 +30,13 @@ from unittest.mock import MagicMock, patch
 import app_paths
 import jsonc_utils
 import server
-from account_pool import AccountPoolManager
 from cursor_settings import CursorSettingsManager
-from pkce_auth import extract_jwt_from_session_cookie, parse_cookies_batch
+from cursor_storage import (
+    CursorStorageManager,
+    decrypt_cursor_safe_storage,
+    detect_token_type,
+    encrypt_cursor_safe_storage,
+)
 from token_cipher import (
     clear_decrypt_cache,
     compute_token_hash,
@@ -41,9 +46,11 @@ from token_cipher import (
 from token_pool import TokenPoolManager
 
 
-def _make_jwt(email: str, sub: str = "auth0|user_v3") -> str:
+def _make_jwt(email: str, sub: str = "auth0|user_v3", tok_type: str = "session") -> str:
     hdr = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).decode().rstrip("=")
-    pay = base64.urlsafe_b64encode(json.dumps({"email": email, "sub": sub, "exp": 1999999999}).encode()).decode().rstrip("=")
+    pay = base64.urlsafe_b64encode(
+        json.dumps({"email": email, "sub": sub, "type": tok_type, "exp": 1999999999}).encode()
+    ).decode().rstrip("=")
     return f"{hdr}.{pay}.sig_v3_test"
 
 
@@ -52,44 +59,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         self.client = server.app.test_client()
         self.client.testing = True
 
-    def test_01_multi_format_cookie_parsing(self):
-        jwt1 = _make_jwt("netscape@test.com")
-        jwt2 = _make_jwt("json@test.com")
-        jwt3 = _make_jwt("header@test.com")
-        jwt4 = _make_jwt("batch@test.com")
-
-        # 1. Netscape TSV with comments
-        netscape = (
-            "# Netscape HTTP Cookie File\n"
-            f".cursor.com\tTRUE\t/\tTRUE\t1999999999\tWorkosCursorSessionToken\tuser_01AAA%3A%3A{jwt1}\n"
-        )
-        res_ns = parse_cookies_batch(netscape)
-        self.assertEqual(len(res_ns), 1)
-        self.assertEqual(extract_jwt_from_session_cookie(res_ns[0]["cookie"]), jwt1)
-
-        # 2. JSON Cookie array
-        json_txt = json.dumps([
-            {"name": "other", "value": "ignored"},
-            {"name": "WorkosCursorSessionToken", "value": f"user_01BBB%3A%3A{jwt2}"},
-        ])
-        res_js = parse_cookies_batch(json_txt)
-        self.assertEqual(len(res_js), 1)
-        self.assertEqual(extract_jwt_from_session_cookie(res_js[0]["cookie"]), jwt2)
-
-        # 3. HTTP Cookie header
-        hdr_txt = f"foo=bar; WorkosCursorSessionToken=user_01CCC%3A%3A{jwt3}; theme=dark"
-        res_hdr = parse_cookies_batch(hdr_txt)
-        self.assertEqual(len(res_hdr), 1)
-        self.assertEqual(extract_jwt_from_session_cookie(res_hdr[0]["cookie"]), jwt3)
-
-        # 4. Batch email|cookie lines
-        batch_txt = f"batch@test.com|user_01DDD::{jwt4}\n"
-        res_b = parse_cookies_batch(batch_txt)
-        self.assertEqual(len(res_b), 1)
-        self.assertEqual(res_b[0]["email_hint"], "batch@test.com")
-        self.assertEqual(extract_jwt_from_session_cookie(res_b[0]["cookie"]), jwt4)
-
-    def test_02_jsonc_preserves_urls_inside_strings(self):
+    def test_01_jsonc_preserves_urls_inside_strings(self):
         raw = """
         // Leading comment
         {
@@ -105,7 +75,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         self.assertIn("https://api2.cursor.sh", parsed["cursor.note"])
         self.assertTrue(parsed["trailing"])
 
-    def test_03_token_cipher_lru_cache_and_blind_hash(self):
+    def test_02_token_cipher_lru_cache_and_blind_hash(self):
         tok = _make_jwt("cipher@test.com")
         enc = encrypt_token(tok)
         self.assertTrue(enc.startswith("enc:v1:"))
@@ -115,7 +85,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         self.assertEqual(len(compute_token_hash(tok)), 32)
         self.assertEqual(compute_token_hash(tok), compute_token_hash(tok))
 
-    def test_04_token_pool_decrypts_and_marks_rate_limited(self):
+    def test_03_token_pool_decrypts_and_marks_rate_limited(self):
         tmp = tempfile.mkdtemp(prefix="cr_v3_tpool_")
         db_path = os.path.join(tmp, "test.db")
         try:
@@ -129,13 +99,14 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
                     email TEXT,
                     access_token TEXT,
                     token_hash TEXT,
+                    token_type TEXT DEFAULT 'session',
                     usage_percent REAL DEFAULT 0.0,
                     status TEXT DEFAULT 'READY',
                     cooldown_until INTEGER DEFAULT 0
                 )
             """)
             con.execute(
-                "INSERT INTO accounts (email, access_token, token_hash, usage_percent, status) VALUES (?, ?, ?, 10.0, 'READY')",
+                "INSERT INTO accounts (email, access_token, token_hash, token_type, usage_percent, status) VALUES (?, ?, ?, 'session', 10.0, 'READY')",
                 ("tpool@test.com", enc, thash),
             )
             con.commit()
@@ -159,7 +130,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_05_antidetect_native_standard_preserves_storage(self):
+    def test_04_antidetect_native_standard_preserves_storage(self):
         tmp = tempfile.mkdtemp(prefix="cr_v3_ad_")
         try:
             storage_path = os.path.join(tmp, "storage.json")
@@ -186,7 +157,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_06_app_paths_env_override(self):
+    def test_05_app_paths_env_override(self):
         tmp = tempfile.mkdtemp(prefix="cr_v3_paths_")
         try:
             with patch.dict(os.environ, {"CURSOR_ROUTER_DATA_DIR": tmp}):
@@ -195,37 +166,32 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_07_api_cookies_paste_and_dashboard_snapshot(self):
-        tmp = tempfile.mkdtemp(prefix="cr_v3_paste_")
-        try:
-            jwt_p = _make_jwt("pasted_v3@test.com")
-            with patch.object(server.pool, "cookies_dir", tmp), \
-                 patch.object(server.pool, "scan_cookies_folder", return_value=1), \
-                 patch.object(server.pool, "start_startup_quota_sync", return_value=True):
-                res = self.client.post(
-                    "/api/cookies/paste",
-                    json={"content": f"pasted_v3@test.com|user_01XYZ%3A%3A{jwt_p}", "auto_convert": True},
-                )
-                self.assertEqual(res.status_code, 200)
-                data = res.get_json()
-                self.assertTrue(data["success"])
-                self.assertEqual(data["parsed"], 1)
-                self.assertEqual(len(os.listdir(tmp)), 1)
+    def test_06_pool_summary_sync_all_and_dashboard_snapshot(self):
+        res = self.client.get("/api/pool/summary")
+        self.assertEqual(res.status_code, 200)
+        summary = res.get_json()
+        self.assertTrue(summary["success"])
+        self.assertEqual(summary["auth_mode"], "oauth_pkce")
+        for key in ("total_accounts", "valid_tokens", "session_tokens", "ready_count", "tier1_count", "tier2_count", "exhausted_count"):
+            self.assertIn(key, summary)
 
-            snap_res = self.client.get("/api/dashboard/snapshot?include_accounts=1")
-            self.assertEqual(snap_res.status_code, 200)
-            snap = snap_res.get_json()
-            self.assertTrue(snap["success"])
-            for key in ("version", "status", "stats", "auto_rotate", "proxy", "keyboard", "accounts"):
-                self.assertIn(key, snap)
+        with patch.object(server.pool, "start_startup_quota_sync", return_value=True) as mock_sync:
+            sync_res = self.client.post("/api/accounts/sync-all")
+            self.assertEqual(sync_res.status_code, 200)
+            self.assertTrue(sync_res.get_json()["success"])
+            mock_sync.assert_called_once_with(max_workers=12, force=True)
 
-            # Same version omits accounts payload for bandwidth savings
-            snap_delta = self.client.get(f"/api/dashboard/snapshot?include_accounts=1&since_version={snap['version']}").get_json()
-            self.assertNotIn("accounts", snap_delta)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
+        snap_res = self.client.get("/api/dashboard/snapshot?include_accounts=1")
+        self.assertEqual(snap_res.status_code, 200)
+        snap = snap_res.get_json()
+        self.assertTrue(snap["success"])
+        for key in ("version", "status", "stats", "auto_rotate", "proxy", "keyboard", "accounts"):
+            self.assertIn(key, snap)
 
-    def test_08_api_network_test_and_secret_redaction(self):
+        snap_delta = self.client.get(f"/api/dashboard/snapshot?include_accounts=1&since_version={snap['version']}").get_json()
+        self.assertNotIn("accounts", snap_delta)
+
+    def test_07_api_network_test_and_secret_redaction(self):
         fake_resp = MagicMock(status_code=405)
         with patch("server.requests.get", return_value=fake_resp):
             res = self.client.get("/api/cursor/network-test")
@@ -235,7 +201,6 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
             self.assertTrue(data["upstream_ok"])
             self.assertIsInstance(data["proxy_running"], bool)
 
-        # /api/accounts and /api/status must NEVER leak raw access_token or refresh_token
         accs = self.client.get("/api/accounts").get_json()
         for a in accs:
             self.assertNotIn("access_token", a)
@@ -246,17 +211,17 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         self.assertNotIn("access_token", st)
         self.assertNotIn("refresh_token", st)
 
-    def test_09_offline_first_ui_and_static_assets(self):
+    def test_08_offline_first_ui_and_static_assets(self):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
         html = res.get_data(as_text=True)
 
-        # Zero external CDN dependencies
         self.assertNotIn("cdn.tailwindcss.com", html)
         self.assertNotIn("fonts.googleapis.com", html)
         self.assertNotIn("fonts.gstatic.com", html)
+        self.assertIn("startInteractiveOAuthLogin", html)
+        self.assertIn("captureActiveCursorAccount", html)
 
-        # All local static assets serve HTTP 200
         for asset in (
             "/static/css/tokens.css",
             "/static/css/app.css",
@@ -269,7 +234,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
             self.assertEqual(r.status_code, 200, f"Static asset failed: {asset}")
             self.assertGreater(len(r.data), 200)
 
-    def test_10_sse_events_handshake(self):
+    def test_09_sse_events_handshake(self):
         res = self.client.get("/api/events")
         self.assertEqual(res.status_code, 200)
         self.assertIn("text/event-stream", res.content_type)
@@ -277,14 +242,9 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         self.assertIn("event: connected", first_chunk)
         res.close()
 
-    def test_11_token_type_detection_and_capture_active_endpoint(self):
-        from cursor_storage import detect_token_type
-        h = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
-        p_sess = base64.urlsafe_b64encode(json.dumps({"email": "ide@test.com", "type": "session"}).encode()).decode().rstrip("=")
-        p_web = base64.urlsafe_b64encode(json.dumps({"email": "web@test.com", "type": "web"}).encode()).decode().rstrip("=")
-        tok_sess = f"{h}.{p_sess}.sig"
-        tok_web = f"{h}.{p_web}.sig"
-
+    def test_10_token_type_capture_active_and_import_token(self):
+        tok_sess = _make_jwt("ide@test.com", tok_type="session")
+        tok_web = _make_jwt("web@test.com", tok_type="web")
         self.assertEqual(detect_token_type(tok_sess), "session")
         self.assertEqual(detect_token_type(tok_web), "web")
         self.assertEqual(detect_token_type("not-a-jwt"), "unknown")
@@ -310,32 +270,26 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
             self.assertTrue(data["success"])
             self.assertEqual(data["email"], "captured_ide@test.com")
             self.assertEqual(data["token_type"], "session")
+            self.client.delete(f"/api/accounts/{data['account_id']}")
 
-            # Cleanup seeded captured row
-            acc_id = data["account_id"]
-            self.client.delete(f"/api/accounts/{acc_id}")
+        # Direct OAuth session token restore endpoint
+        tok_imp = _make_jwt("restored_oauth@test.com", tok_type="session")
+        with patch.object(server.pool.storage, "fetch_profile_from_api", return_value={
+            "email": "restored_oauth@test.com",
+            "displayName": "Restored OAuth",
+            "authId": "auth0|restored",
+            "usagePercent": 4.0,
+            "totalSpend": 8.0,
+            "usage_fetched": True,
+        }):
+            res2 = self.client.post("/api/accounts/import-token", json={"access_token": tok_imp})
+            self.assertEqual(res2.status_code, 200)
+            d2 = res2.get_json()
+            self.assertTrue(d2["success"])
+            self.assertEqual(d2["email"], "restored_oauth@test.com")
+            self.client.delete(f"/api/accounts/{d2['account_id']}")
 
-    def test_12_scan_cookies_folder_supports_json_exports(self):
-        tmp = tempfile.mkdtemp(prefix="cr_v3_json_scan_")
-        try:
-            tok = _make_jwt("json_drop@test.com")
-            json_file = os.path.join(tmp, "json_drop@test.com.json")
-            with open(json_file, "w", encoding="utf-8") as f:
-                json.dump([{"name": "WorkosCursorSessionToken", "value": f"user_01JSON%3A%3A{tok}"}], f)
-
-            mgr = AccountPoolManager(cookies_dir=tmp)
-            added = mgr.scan_cookies_folder()
-            self.assertEqual(added, 1)
-
-            con = sqlite3.connect(server.DB_FILE, timeout=30.0)
-            con.execute("DELETE FROM accounts WHERE LOWER(email) = 'json_drop@test.com'")
-            con.commit()
-            con.close()
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-
-    def test_13_interactive_pkce_endpoints_and_web_only_exclusion(self):
-        # 1. Start + status + cancel OAuth PKCE session (without launching real browser)
+    def test_11_interactive_pkce_and_web_only_exclusion(self):
         with patch("webbrowser.open", return_value=True), \
              patch("server._pkce_poll_worker", return_value=None):
             res = self.client.post("/api/auth/pkce/start", json={"open_browser": False})
@@ -351,12 +305,11 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
             cn = self.client.post(f"/api/auth/pkce/cancel/{sid}").get_json()
             self.assertEqual(cn["status"], "cancelled")
 
-        # 2. TokenPoolManager must skip token_type='web' so Proxy never sends web-only JWT to IDE AI endpoints
         tmp = tempfile.mkdtemp(prefix="cr_v3_web_excl_")
         db_path = os.path.join(tmp, "test.db")
         try:
-            web_tok = _make_jwt("webonly@test.com")
-            sess_tok = _make_jwt("idesess@test.com")
+            web_tok = _make_jwt("webonly@test.com", tok_type="web")
+            sess_tok = _make_jwt("idesess@test.com", tok_type="session")
             con = sqlite3.connect(db_path)
             con.execute("""
                 CREATE TABLE accounts (
@@ -364,7 +317,7 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
                     email TEXT,
                     access_token TEXT,
                     token_hash TEXT,
-                    token_type TEXT DEFAULT 'unknown',
+                    token_type TEXT DEFAULT 'session',
                     usage_percent REAL DEFAULT 0.0,
                     status TEXT DEFAULT 'READY',
                     cooldown_until INTEGER DEFAULT 0
@@ -388,20 +341,13 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_14_safe_storage_encrypt_decrypt_roundtrip_on_at_rest_db(self):
-        from cursor_storage import (
-            CursorStorageManager,
-            encrypt_cursor_safe_storage,
-            decrypt_cursor_safe_storage,
-        )
-        # Verify encrypt/decrypt round-trip when Windows DPAPI key exists
-        tok = _make_jwt("safestorage@test.com")
+    def test_12_safe_storage_encrypt_decrypt_roundtrip_on_at_rest_db(self):
+        tok = _make_jwt("safestorage@test.com", tok_type="session")
         enc = encrypt_cursor_safe_storage(tok)
         if enc is not None:
             self.assertTrue(enc.startswith("cursor-safe-storage:v1:"))
             self.assertEqual(decrypt_cursor_safe_storage(enc), tok)
 
-            # Verify inject_full_profile encrypts when authTokenEncryptionAtRest == 'true'
             tmp = tempfile.mkdtemp(prefix="cr_v3_ss_")
             try:
                 vscdb = os.path.join(tmp, "state.vscdb")
@@ -422,7 +368,6 @@ class TestV3ArchitectureAndUI(unittest.TestCase):
                 self.assertTrue(raw_stored.startswith("cursor-safe-storage:v1:"))
                 self.assertEqual(last_auth, "auth0|ss_user")
 
-                # And get_active_account decrypts it seamlessly!
                 active = sm.get_active_account()
                 self.assertEqual(active["access_token"], tok)
                 self.assertTrue(active["safe_storage_encrypted"])

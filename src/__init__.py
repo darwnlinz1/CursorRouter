@@ -14,6 +14,8 @@ for _p in (SRC_DIR, ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+__version__ = "3.1.0"
+
 __all__ = [
     "account_pool",
     "ai_optimizer",

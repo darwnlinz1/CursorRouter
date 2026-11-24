@@ -827,7 +827,37 @@ button, input, select, textarea {
   color: var(--text-muted);
 }
 
-/* ================= 3. INSTANT COOKIE INGESTION WORKBENCH ================= */
+/* ================= 3. OAUTH ACCOUNT ONBOARDING HUB ================= */
+.oauth-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.oauth-action-card {
+  background: #101012;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: border-color 0.15s ease;
+}
+
+.oauth-action-card:hover {
+  border-color: var(--border-strong);
+}
+
+.oauth-action-card.featured {
+  border-color: var(--emerald-border);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+@media (max-width: 980px) {
+  .oauth-action-grid { grid-template-columns: 1fr; }
+}
 .workbench-card {
   overflow: hidden;
 }

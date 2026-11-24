@@ -97,8 +97,8 @@ class DesktopAppController:
 
     def launch(self):
         self.running = True
-        from app_paths import get_cookies_dir
-        os.makedirs(get_cookies_dir(), exist_ok=True)
+        from app_paths import get_data_dir
+        os.makedirs(get_data_dir(), exist_ok=True)
 
         cursor_online = is_cursor_running()
         if cursor_online:

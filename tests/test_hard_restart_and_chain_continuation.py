@@ -295,13 +295,31 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
         con = sqlite3.connect(DB_FILE)
         cur = con.cursor()
         cur.execute("SELECT id FROM accounts LIMIT 1")
-        acc_id = cur.fetchone()[0]
+        row = cur.fetchone()
+        created_temp = False
+        if row:
+            acc_id = row[0]
+        else:
+            cur.execute("""
+                INSERT INTO accounts (file_name, email, access_token, usage_percent, status)
+                VALUES ('oauth_reset_mode_test.oauth', 'reset_mode_test@example.com', 'eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoic2Vzc2lvbiJ9.sig', 5.0, 'READY')
+            """)
+            acc_id = cur.lastrowid
+            con.commit()
+            created_temp = True
         con.close()
 
-        with patch("server.pool.switch_to_account", return_value=True) as mock_sw:
-            res = self.client.post(f"/api/switch/{acc_id}", json={"reset_mode": "hard_restart", "auto_continue": True})
-            self.assertEqual(res.status_code, 200)
-            mock_sw.assert_called_with(acc_id, auto_reload=True, auto_continue=True, reset_mode="hard_restart")
+        try:
+            with patch("server.pool.switch_to_account", return_value=True) as mock_sw:
+                res = self.client.post(f"/api/switch/{acc_id}", json={"reset_mode": "hard_restart", "auto_continue": True})
+                self.assertEqual(res.status_code, 200)
+                mock_sw.assert_called_with(acc_id, auto_reload=True, auto_continue=True, reset_mode="hard_restart")
+        finally:
+            if created_temp:
+                con = sqlite3.connect(DB_FILE)
+                con.execute("DELETE FROM accounts WHERE id = ?", (acc_id,))
+                con.commit()
+                con.close()
 
     # =========================================================================
     # 5. EDGE CASES
@@ -383,8 +401,6 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
         import shutil
         test_dir = tempfile.mkdtemp(prefix="cursor_cascade_test_")
         test_db = os.path.join(test_dir, "test_accounts.db")
-        test_cookies = os.path.join(test_dir, "Cookies")
-        os.makedirs(test_cookies, exist_ok=True)
 
         con = sqlite3.connect(test_db)
         cur = con.cursor()
@@ -430,8 +446,6 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
         con.commit()
         con.close()
 
-        mgr = AccountPoolManager(cookies_dir=test_cookies)
-
         dispatched_prompts = []
         terminated_calls = []
         relaunched_calls = []
@@ -449,6 +463,7 @@ class TestHardRestartAndChainContinuation(unittest.TestCase):
             return True
 
         with patch("account_pool.DB_FILE", test_db):
+            mgr = AccountPoolManager()
             with patch("cursor_reloader.is_cursor_running", return_value=True):
                 with patch("cursor_reloader.terminate_cursor", side_effect=mock_terminate):
                     with patch("cursor_reloader.launch_cursor_app", side_effect=mock_launch):

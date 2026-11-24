@@ -31,8 +31,6 @@ except ImportError:
 class TestQuotaExhaustionThreshold(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.test_cookies = os.path.join(self.test_dir, "Cookies")
-        os.makedirs(self.test_cookies, exist_ok=True)
         self.test_db = os.path.join(self.test_dir, "test_accounts.db")
         
         # Patch DB_FILE in account_pool
@@ -51,7 +49,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_status_classification_logic(self):
         """Test status evaluation rules for various usage percentages: 50% is HIGH_USAGE, only 100% or lock is EXHAUSTED."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         
         # Case 1: usage = 0% -> READY
         mock_profile_0 = {"email": "test0@example.com", "usagePercent": 0.0, "autoPercentUsed": 0.0}
@@ -97,7 +95,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_best_account_selection_order(self):
         """Verify auto_switch_best_account selects the lowest usage account available."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         
         # Populate test accounts
         con = sqlite3.connect(self.test_db)
@@ -125,7 +123,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_best_account_can_select_high_usage_over_50(self):
         """Verify accounts between 50% and 100% CAN be selected if lower accounts aren't available."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -148,7 +146,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_best_account_when_all_exhausted(self):
         """Verify auto_switch_best_account returns None if all accounts >= 100% or EXHAUSTED."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -196,7 +194,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
         con.close()
 
         # Instantiate manager, which calls _init_db
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -209,13 +207,8 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
         self.assertEqual(rows["a100@test.com"], "EXHAUSTED")
 
     def test_delete_exhausted_accounts(self):
-        """Verify delete_exhausted_accounts removes accounts >= 100% or EXHAUSTED."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
-        
-        # Create cookie files
-        for f in ["c1.txt", "c2.txt", "c3.txt", "c4.txt"]:
-            with open(os.path.join(self.test_cookies, f), "w") as fp:
-                fp.write("cookie")
+        """Verify delete_exhausted_accounts removes accounts >= 100% or EXHAUSTED from SQLite pool."""
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -223,10 +216,10 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
             INSERT INTO accounts (file_name, email, usage_percent, status)
             VALUES (?, ?, ?, ?)
         """, [
-            ("c1.txt", "keep@test.com", 20.0, "READY"),
-            ("c2.txt", "keep75@test.com", 75.0, "HIGH_USAGE"),
-            ("c3.txt", "del100@test.com", 100.0, "EXHAUSTED"),
-            ("c4.txt", "del_ex@test.com", 102.0, "EXHAUSTED"),
+            ("oauth_keep.oauth", "keep@test.com", 20.0, "READY"),
+            ("oauth_keep75.oauth", "keep75@test.com", 75.0, "HIGH_USAGE"),
+            ("oauth_del100.oauth", "del100@test.com", 100.0, "EXHAUSTED"),
+            ("oauth_del_ex.oauth", "del_ex@test.com", 102.0, "EXHAUSTED"),
         ])
         con.commit()
         con.close()
@@ -241,10 +234,6 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
         con.close()
 
         self.assertEqual(remaining, {"keep@test.com", "keep75@test.com"})
-        self.assertTrue(os.path.exists(os.path.join(self.test_cookies, "c1.txt")))
-        self.assertTrue(os.path.exists(os.path.join(self.test_cookies, "c2.txt")))
-        self.assertFalse(os.path.exists(os.path.join(self.test_cookies, "c3.txt")))
-        self.assertFalse(os.path.exists(os.path.join(self.test_cookies, "c4.txt")))
 
     def test_token_pool_filters_ge_100(self):
         """Verify TokenPoolManager loads only accounts with usage < 100%."""
@@ -290,16 +279,16 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_skips_exhausted_pending_account(self):
         """Verify that a PENDING account that refreshes to >= 100% is NOT injected, and next pending is chosen."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
         cur.executemany("""
-            INSERT INTO accounts (id, file_name, status, cookie_full)
+            INSERT INTO accounts (id, file_name, status, access_token)
             VALUES (?, ?, 'PENDING', ?)
         """, [
-            (1, "pending_exhausted.txt", "cookie_exhausted"),
-            (2, "pending_valid.txt", "cookie_valid")
+            (1, "pending_exhausted.oauth", "oauth_token_exhausted"),
+            (2, "pending_valid.oauth", "oauth_token_valid")
         ])
         con.commit()
         con.close()
@@ -333,7 +322,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_candidate_failover(self):
         """Verify that if candidate 1 fails switch_to_account, candidate 2 is attempted and succeeds."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -357,7 +346,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_switch_includes_high_usage_under_100(self):
         """Verify that HIGH_USAGE accounts (< 100%) are eligible if they are the lowest available under 100%."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -379,7 +368,7 @@ class TestQuotaExhaustionThreshold(unittest.TestCase):
 
     def test_auto_rotate_watcher_stop_event(self):
         """Verify watcher starts and stops cleanly via stop event."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         mgr.start_auto_rotate_watcher(interval_seconds=60)
         self.assertTrue(mgr.auto_rotate_enabled)
         mgr.stop_auto_rotate_watcher()

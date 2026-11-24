@@ -168,16 +168,22 @@ class TestServerEndpointsAndSecurity(unittest.TestCase):
             if tok and len(tok) > 12:
                 self.assertEqual(first["masked_token"], f"{tok[:6]}...{tok[-4:]}")
 
-    def test_api_scan_debounce(self):
-        """Rapid calls to /api/scan within debounce window must be throttled gracefully."""
-        # First call might scan or be throttled depending on previous run
-        res1 = self.app.post("/api/scan")
-        self.assertEqual(res1.status_code, 200)
-        # Immediate second call must be throttled
-        res2 = self.app.post("/api/scan")
-        self.assertEqual(res2.status_code, 200)
-        data2 = json.loads(res2.data)
-        self.assertTrue(data2.get("throttled"))
+    def test_api_oauth_sync_and_pool_summary(self):
+        """Pure OAuth /api/pool/summary and /api/accounts/sync-all endpoints respond cleanly and /api/scan is removed."""
+        self.assertEqual(self.app.post("/api/scan").status_code, 404)
+
+        res_sum = self.app.get("/api/pool/summary")
+        self.assertEqual(res_sum.status_code, 200)
+        data_sum = json.loads(res_sum.data)
+        self.assertTrue(data_sum.get("success"))
+        self.assertEqual(data_sum.get("auth_mode"), "oauth_pkce")
+
+        with patch.object(server.pool, "start_startup_quota_sync", return_value=True):
+            res_sync = self.app.post("/api/accounts/sync-all", json={"max_workers": 8})
+            self.assertEqual(res_sync.status_code, 200)
+            data_sync = json.loads(res_sync.data)
+            self.assertTrue(data_sync.get("success"))
+            self.assertTrue(data_sync.get("sync_started"))
 
     def test_api_cursor_send_continue_rate_limited(self):
         """Calling /api/cursor/send-continue rapidly must be rate limited."""

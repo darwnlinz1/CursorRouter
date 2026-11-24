@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-CursorRouter v3.0 — Reproducible Architecture & Speed Benchmark Harness
+CursorRouter v3.1 — Reproducible Architecture & Speed Benchmark Harness
 ========================================================================
 Compares competing architectures across 3 critical performance dimensions:
   1. HTTP Stack & Concurrency (Legacy unpooled requests vs ThreadPool+Session
-     vs asyncio+aiohttp HTTP/1.1 vs persistent asyncio+httpx HTTP/2 Multiplexing)
-  2. Token Decryption Engine (Uncached PBKDF2 vs Bounded LRU Cache)
+     vs persistent asyncio+httpx HTTP/2 Multiplexing over OAuth sessions)
+  2. Token Decryption Engine (Cold PBKDF2 vs Bounded LRU Cache)
   3. SQLite Persistence Layer (Per-row multi-connection commits vs Batched WAL)
 
 Usage:
-    python scripts/benchmark_architectures.py --cookies-dir Cookies
-    python scripts/benchmark_architectures.py --cookies-dir Cookies --output benchmark.json
+    python scripts/benchmark_architectures.py --skip-network
+    python scripts/benchmark_architectures.py --db cursor_accounts.db
+    python scripts/benchmark_architectures.py --db cursor_accounts.db --output benchmark.json
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import concurrent.futures
 import json
 import os
@@ -35,7 +35,6 @@ if SRC_DIR not in sys.path:
 import requests
 
 from async_sync_engine import AsyncCursorSyncEngine
-from pkce_auth import extract_jwt_from_session_cookie, parse_cookie_from_file
 from token_cipher import clear_decrypt_cache, decrypt_token, encrypt_token
 
 API_BASE = "https://api2.cursor.sh"
@@ -45,8 +44,8 @@ POLICY_URL = f"{API_BASE}/aiserver.v1.DashboardService/GetUsageLimitPolicyStatus
 
 
 def _mask(email: str) -> str:
-    if "@" not in email:
-        return email[:3] + "***"
+    if not email or "@" not in email:
+        return (email or "acc")[:3] + "***"
     local, domain = email.split("@", 1)
     return f"{local[:3]}***@{domain}"
 
@@ -56,33 +55,33 @@ def _headers(token: str) -> Dict[str, str]:
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Connect-Protocol-Version": "1",
-        "Origin": "https://cursor.com",
-        "User-Agent": "CursorRouter-Benchmark/3.0",
+        "User-Agent": "CursorRouter-Benchmark/3.1",
     }
 
 
-def load_test_tokens(cookies_dir: str) -> List[Dict[str, str]]:
-    items: List[Dict[str, str]] = []
-    if not os.path.isdir(cookies_dir):
+def load_oauth_sessions_from_db(db_path: str) -> List[Dict[str, Any]]:
+    """Load decrypted OAuth sessions from local SQLite pool for live network benchmarking."""
+    items: List[Dict[str, Any]] = []
+    if not db_path or not os.path.exists(db_path):
         return items
-    for fname in sorted(os.listdir(cookies_dir)):
-        if not fname.lower().endswith((".txt", ".json", ".cookie")):
-            continue
-        fpath = os.path.join(cookies_dir, fname)
-        if not os.path.isfile(fpath):
-            continue
-        cookie = parse_cookie_from_file(fpath)
-        if not cookie:
-            continue
-        tok = extract_jwt_from_session_cookie(cookie)
-        if not tok:
-            continue
-        items.append({
-            "id": len(items) + 1,
-            "email": os.path.splitext(fname)[0],
-            "cookie_full": cookie,
-            "access_token": tok,
-        })
+    con = sqlite3.connect(db_path, timeout=10.0)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute(
+            "SELECT id, email, display_name, auth_id, access_token FROM accounts WHERE access_token IS NOT NULL AND length(access_token) > 20"
+        ).fetchall()
+        for r in rows:
+            tok = decrypt_token(r["access_token"])
+            if tok:
+                items.append({
+                    "id": r["id"],
+                    "email": r["email"] or f"acc_{r['id']}",
+                    "display_name": r["display_name"],
+                    "auth_id": r["auth_id"],
+                    "access_token": tok,
+                })
+    finally:
+        con.close()
     return items
 
 
@@ -140,29 +139,27 @@ def bench_threadpool_session(items: List[Dict[str, Any]], workers: int = 12) -> 
 
 
 def bench_async_h2_engine(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """v3.0 Winning Architecture: persistent asyncio + httpx HTTP/2 multiplexed engine."""
+    """v3.1 Winning Architecture: persistent asyncio + httpx HTTP/2 multiplexed engine."""
     engine = AsyncCursorSyncEngine(max_concurrency=16, timeout_sec=10.0)
     results_out: List[Dict[str, Any]] = []
 
-    # Cold pass (full 2-RPC sync: GetMe + GetCurrentPeriodUsage)
     t0 = time.perf_counter()
     res_cold = engine.sync_accounts(items, hydrate_missing_profile=True)
     ms_cold = (time.perf_counter() - t0) * 1000.0
     ok_cold = sum(1 for r in res_cold if r.get("success"))
     results_out.append({
-        "name": "v3.0 Persistent httpx HTTP/2 (Cold 2-RPC)",
+        "name": "v3.1 Persistent httpx HTTP/2 (Cold 2-RPC)",
         "ms": round(ms_cold, 2),
         "ok": ok_cold,
         "total": len(items),
     })
 
-    # Warm pass (1-RPC fast refresh over coalesced H2 stream)
     t1 = time.perf_counter()
     res_warm = engine.sync_accounts(items, hydrate_missing_profile=False)
     ms_warm = (time.perf_counter() - t1) * 1000.0
     ok_warm = sum(1 for r in res_warm if r.get("success"))
     results_out.append({
-        "name": "v3.0 Persistent httpx HTTP/2 (Warm 1-RPC)",
+        "name": "v3.1 Persistent httpx HTTP/2 (Warm 1-RPC)",
         "ms": round(ms_warm, 2),
         "ok": ok_warm,
         "total": len(items),
@@ -171,7 +168,7 @@ def bench_async_h2_engine(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Suite 2: Token Cryptography Benchmark (Uncached vs LRU Cache)
+# Suite 2: Token Cryptography Benchmark (Cold PBKDF2 vs Bounded LRU Cache)
 # ---------------------------------------------------------------------------
 
 def bench_crypto(account_count: int = 100) -> Dict[str, Any]:
@@ -180,14 +177,12 @@ def bench_crypto(account_count: int = 100) -> Dict[str, Any]:
         for i in range(account_count * 3)
     ]
 
-    # Cold pass (empty LRU cache = full PBKDF2 derivation per field)
     clear_decrypt_cache()
     t0 = time.perf_counter()
     for val in encrypted_fields:
         decrypt_token(val)
     uncached_ms = (time.perf_counter() - t0) * 1000.0
 
-    # Warm pass (bounded LRU cache hit)
     t1 = time.perf_counter()
     for val in encrypted_fields:
         decrypt_token(val)
@@ -233,7 +228,6 @@ def bench_sqlite(row_count: int = 50) -> Dict[str, Any]:
         con.commit()
         con.close()
 
-    # Legacy: 3 separate open/commit/close per row
     t0 = time.perf_counter()
     for i in range(1, row_count + 1):
         for sql in (
@@ -242,7 +236,7 @@ def bench_sqlite(row_count: int = 50) -> Dict[str, Any]:
             "UPDATE accounts SET status = 'READY' WHERE id = ?",
         ):
             con = sqlite3.connect(db_legacy)
-            if "?" in sql and sql.count("?") == 2:
+            if sql.count("?") == 2:
                 con.execute(sql, (float(i), i))
             else:
                 con.execute(sql, (i,))
@@ -250,7 +244,6 @@ def bench_sqlite(row_count: int = 50) -> Dict[str, Any]:
             con.close()
     legacy_ms = (time.perf_counter() - t0) * 1000.0
 
-    # v3.0: Single batched WAL transaction
     t1 = time.perf_counter()
     con = sqlite3.connect(db_wal)
     con.execute("PRAGMA journal_mode=WAL")
@@ -282,21 +275,21 @@ def bench_sqlite(row_count: int = 50) -> Dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="CursorRouter v3.0 Architecture Benchmark")
-    parser.add_argument("--cookies-dir", default=os.path.join(ROOT_DIR, "Cookies"), help="Path to cookie files folder")
+    parser = argparse.ArgumentParser(description="CursorRouter v3.1 Pure OAuth Architecture Benchmark")
+    parser.add_argument("--db", default=os.path.join(ROOT_DIR, "cursor_accounts.db"), help="Path to local OAuth SQLite pool DB")
     parser.add_argument("--skip-network", action="store_true", help="Run only local Crypto + SQLite suites")
     parser.add_argument("--output", default="", help="Optional JSON output file")
     args = parser.parse_args()
 
     report: Dict[str, Any] = {"network": [], "crypto": {}, "sqlite": {}}
 
-    print("=== CursorRouter v3.0 Architecture Benchmark ===")
+    print("=== CursorRouter v3.1 Architecture Benchmark (Pure OAuth) ===")
     if not args.skip_network:
-        items = load_test_tokens(args.cookies_dir)
+        items = load_oauth_sessions_from_db(args.db)
         if not items:
-            print(f"[Network] No parseable cookie files found in {args.cookies_dir} — skipping Suite 1.")
+            print(f"[Network] No OAuth sessions found in {args.db} — skipping Suite 1.")
         else:
-            print(f"[Suite 1] Loaded {len(items)} cookie(s): {', '.join(_mask(x['email']) for x in items)}")
+            print(f"[Suite 1] Loaded {len(items)} OAuth session(s): {', '.join(_mask(x['email']) for x in items)}")
             r_legacy = bench_legacy_unpooled_requests(items)
             r_pool = bench_threadpool_session(items)
             r_h2 = bench_async_h2_engine(items)

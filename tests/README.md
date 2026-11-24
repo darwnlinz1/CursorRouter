@@ -37,7 +37,8 @@ Comprehensive automated test suite covering unit tests, integration scenarios, W
 | **`test_all_cursor_settings_and_profiles.py`** | 8-category Cursor IDE settings taxonomy bi-directional sync and custom configuration profiles. |
 | **`test_chat_lock_and_proxy_comprehensive.py`** | 4-layer chat lockout detection and local Connect-RPC streaming proxy (`:8999`). |
 | **`test_realtime_and_quota_persistence.py`** | Persistent quota engine (guarantees quota is retained across F5 page reloads) and live clock. |
-| **`test_ui_and_native_features.py`** | Active account first-row sorting, cookie folder auto-creation, and Windows Toast notification escaping. |
-| **`test_pkce_auth_and_cookie_parsing.py`** | PKCE OAuth 2.0 exchange, Netscape cookie parser, and HTTP error handling. |
+| **`test_ui_and_native_features.py`** | Active account first-row sorting, Pure OAuth PKCE Onboarding Hub UI/API, and Windows Toast notification escaping. |
+| **`test_pkce_oauth.py`** | RFC 7636 S256 PKCE OAuth 2.0 session creation, official Cursor polling, and `/api/auth/pkce/*` endpoints. |
+| **`test_v3_architecture_and_ui.py`** | v3.1 Pure OAuth async HTTP/2 sync engine, LRU token cipher, DPAPI safeStorage codec, and zero-CDN offline cockpit UI. |
 | **`test_cursor_storage_manager.py`** | JWT decoding, SQLite ItemTable updates in `state.vscdb`, and remote profile synchronization. |
 | **`test_token_pool_and_checksum.py`** | Sub-millisecond in-memory token cache, fair round-robin scheduling, and dynamic checksum calculation. |

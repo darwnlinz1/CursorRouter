@@ -22,8 +22,6 @@ class TestStartupQuotaSync(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
         self.test_db = os.path.join(self.test_dir, "test_cursor_accounts.db")
-        self.test_cookies = os.path.join(self.test_dir, "Cookies")
-        os.makedirs(self.test_cookies, exist_ok=True)
         
         self.original_db = account_pool.DB_FILE
         account_pool.DB_FILE = self.test_db
@@ -76,7 +74,7 @@ class TestStartupQuotaSync(unittest.TestCase):
         con.commit()
         con.close()
 
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
@@ -92,7 +90,7 @@ class TestStartupQuotaSync(unittest.TestCase):
 
     def test_02_startup_sync_configuration_and_5_workers(self):
         """Kiem tra khoi tao tien trinh chay ngam voi dung 5 luong."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
         self.assertFalse(mgr.get_startup_sync_progress()["running"])
 
         # Insert 10 mock accounts
@@ -128,17 +126,17 @@ class TestStartupQuotaSync(unittest.TestCase):
 
     def test_03_startup_sync_quota_evaluation_and_db_persistence(self):
         """Kiem tra tinh dung dan cua quota va trang thai duoc cap nhat vao DB qua 5 luong."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
         cur.execute("""
-            INSERT INTO accounts (file_name, email, access_token, cookie_full, usage_percent, total_spend, status)
+            INSERT INTO accounts (file_name, email, access_token, usage_percent, total_spend, status)
             VALUES 
-                ('acc1', 'ready@test.com', 'tok_ready', 'cookie_1', 0.0, 0.0, 'EXHAUSTED'),
-                ('acc2', 'high@test.com', 'tok_high', 'cookie_2', 0.0, 0.0, 'READY'),
-                ('acc3', 'exhausted@test.com', 'tok_exhausted', 'cookie_3', 0.0, 0.0, 'READY'),
-                ('acc4', 'expired@test.com', 'tok_expired', '', 0.0, 0.0, 'READY')
+                ('acc1', 'ready@test.com', 'tok_ready', 0.0, 0.0, 'EXHAUSTED'),
+                ('acc2', 'high@test.com', 'tok_high', 0.0, 0.0, 'READY'),
+                ('acc3', 'exhausted@test.com', 'tok_exhausted', 0.0, 0.0, 'READY'),
+                ('acc4', 'expired@test.com', 'tok_expired', 0.0, 0.0, 'READY')
         """)
         con.commit()
         con.close()
@@ -203,57 +201,43 @@ class TestStartupQuotaSync(unittest.TestCase):
         con.close()
         self.assertGreaterEqual(snap_count, 3)
 
-    def test_04_startup_sync_token_refresh_via_cookie_on_401(self):
-        """Kiem tra co che tu dong doi token qua cookie neu gap 401 trong luong startup."""
-        mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+    def test_04_startup_sync_marks_401_oauth_session_expired(self):
+        """Kiem tra phien OAuth bi 401 trong luong startup duoc chuyen trang thai EXPIRED an toan."""
+        mgr = AccountPoolManager()
 
         con = sqlite3.connect(self.test_db)
         cur = con.cursor()
         cur.execute("""
-            INSERT INTO accounts (file_name, email, access_token, cookie_full, usage_percent, status)
-            VALUES ('acc_refresh', 'refresh@test.com', 'old_tok', 'valid_cookie_123', 0.0, 'PENDING')
+            INSERT INTO accounts (file_name, email, access_token, usage_percent, status)
+            VALUES ('oauth_expired', 'expired_oauth@test.com', 'revoked_oauth_tok', 12.0, 'READY')
         """)
         con.commit()
         con.close()
 
-        call_count = {"calls": 0}
         def mock_post(url, headers=None, json=None, timeout=None):
             resp = MagicMock()
-            token = headers.get("Authorization", "").replace("Bearer ", "")
-            if token == "old_tok":
-                resp.status_code = 401
-            elif token == "new_tok":
-                call_count["calls"] += 1
-                resp.status_code = 200
-                resp.json.return_value = {
-                    "planUsage": {"totalPercentUsed": 8.0, "autoPercentUsed": 8.0, "totalSpend": 16.0},
-                    "displayMessage": "Refreshed OK"
-                }
+            resp.status_code = 401
+            resp.json.return_value = {"error": "unauthorized"}
             return resp
 
-        with patch("account_pool.requests.post", side_effect=mock_post), \
-             patch.object(mgr.auth_client, "exchange_cookie_to_tokens", return_value={"accessToken": "new_tok", "refreshToken": "new_ref"}):
+        with patch("account_pool.requests.post", side_effect=mock_post):
             mgr.start_startup_quota_sync(max_workers=5, blocking=True)
 
         con = sqlite3.connect(self.test_db)
         con.row_factory = sqlite3.Row
         cur = con.cursor()
-        cur.execute("SELECT * FROM accounts WHERE email = 'refresh@test.com'")
+        cur.execute("SELECT * FROM accounts WHERE email = 'expired_oauth@test.com'")
         acc = dict(cur.fetchone())
         con.close()
 
-        from token_cipher import decrypt_token
-        self.assertTrue(acc["access_token"].startswith("enc:v1:"))
-        self.assertEqual(decrypt_token(acc["access_token"]), "new_tok")
-        self.assertEqual(acc["status"], "READY")
-        self.assertEqual(acc["usage_percent"], 8.0)
-        self.assertEqual(call_count["calls"], 1)
+        self.assertEqual(acc["status"], "EXPIRED")
+        self.assertIn("OAuth", acc["display_message"])
 
     def test_05_api_endpoints_startup_sync(self):
         """Kiem tra cac endpoint /api/startup-sync/status va /api/startup-sync/start."""
         import server
         server.DB_FILE = self.test_db
-        server.pool = AccountPoolManager(cookies_dir=self.test_cookies)
+        server.pool = AccountPoolManager()
         client = server.app.test_client()
 
         res = client.get("/api/startup-sync/status")

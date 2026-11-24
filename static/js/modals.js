@@ -218,22 +218,22 @@
   }
 
   async function cleanHighUsageAccounts() {
-    if (!confirm('Xóa toàn bộ tài khoản cạn quota (≥100%) và file cookie tương ứng?')) return;
+    if (!confirm('Xóa toàn bộ phiên tài khoản cạn quota (≥100%) khỏi pool?')) return;
     const { ok, data } = await U.apiFetch('/api/accounts/clean-high-usage', { method: 'POST' });
     if (ok && data && data.success) {
       U.showToast(`Đã dọn dẹp ${data.deleted || 0} tài khoản hết quota`, 'success');
       closeCleanupModal();
-      await Promise.allSettled([global.loadAccounts(), global.loadCookiesInfo()]);
+      await Promise.allSettled([global.loadAccounts(), global.loadPoolSummary()]);
     }
   }
 
   async function cleanInvalidAccounts() {
-    if (!confirm('Cách ly & xóa toàn bộ tài khoản EXPIRED khỏi pool?')) return;
+    if (!confirm('Xóa toàn bộ phiên OAuth EXPIRED khỏi pool?')) return;
     const { ok, data } = await U.apiFetch('/api/accounts/clean-invalid', { method: 'POST' });
     if (ok && data && data.success) {
-      U.showToast(`Đã dọn dẹp ${data.deleted || 0} tài khoản hỏng`, 'success');
+      U.showToast(`Đã dọn dẹp ${data.deleted || 0} phiên hết hạn`, 'success');
       closeCleanupModal();
-      await Promise.allSettled([global.loadAccounts(), global.loadCookiesInfo()]);
+      await Promise.allSettled([global.loadAccounts(), global.loadPoolSummary()]);
     }
   }
 

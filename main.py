@@ -24,14 +24,11 @@ for p in (SRC_DIR, ROOT_DIR):
         sys.path.insert(0, p)
 
 if __name__ == "__main__":
-    # Dam bao thu muc Cookies luon duoc tu dong tao khi khoi dong
-    os.makedirs(os.path.join(ROOT_DIR, "Cookies"), exist_ok=True)
-
     # Neu co tham so --native hoac --app, khoi chay Native Desktop Window
     if any(arg in ("--native", "--app") for arg in sys.argv[1:]):
         import native_app
         native_app.main()
-    # Neu co tham so CLI khac (vi du: --status, --scan, --auto-switch, -h, --help), chuyen cho cursor_manager xu ly
+    # Neu co tham so CLI khac (vi du: --status, --oauth-login, --capture, --auto-switch, -h, --help), chuyen cho cursor_manager xu ly
     elif len(sys.argv) > 1 and any(arg.startswith("-") for arg in sys.argv[1:]):
         from cursor_manager import main as cli_main
         cli_main()
@@ -42,7 +39,7 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "7860"))
         start_background_services()
         print(f"\n========================================================")
-        print(f"  [>] CURSORROUTER v3.0 HOST DANG CHAY TAI:")
+        print(f"  [>] CURSORROUTER v3.1 (PURE OAUTH PKCE) DANG CHAY TAI:")
         print(f"  [>] http://{host}:{port}  hoac  http://localhost:{port}")
         print(f"========================================================\n")
         app.run(host=host, port=port, debug=False, threaded=True)

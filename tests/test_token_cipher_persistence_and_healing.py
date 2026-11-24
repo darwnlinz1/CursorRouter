@@ -17,37 +17,14 @@ from account_pool import AccountPoolManager
 
 
 class TestTokenCipherPersistenceAndHealing(unittest.TestCase):
-    def test_master_key_persists_across_storage_json_mutation(self):
-        """Tokens encrypted before storage.json changes must decrypt cleanly after machineId is spoofed."""
+    def test_master_key_persists_independently_of_storage_json(self):
+        """Tokens encrypted via token_cipher decrypt cleanly using persistent master key without touching host storage.json."""
         original_plain = "secret_access_token_payload_998877"
         encrypted = token_cipher.encrypt_token(original_plain)
         self.assertTrue(encrypted.startswith("enc:v1:"))
 
-        # Simulate Cursor storage.json machineId mutation/spoofing
-        appdata = os.getenv("APPDATA")
-        if appdata:
-            s_path = os.path.join(appdata, "Cursor", "User", "globalStorage", "storage.json")
-            if os.path.exists(s_path):
-                try:
-                    with open(s_path, "r", encoding="utf-8") as f:
-                        original_data = json.load(f)
-                    # Spoof with a new random machine ID
-                    spoofed_data = dict(original_data)
-                    spoofed_data["telemetry.machineId"] = "0000000000000000000000000000000000000000000000000000000000009999"
-                    with open(s_path, "w", encoding="utf-8") as f:
-                        json.dump(spoofed_data, f)
-                    
-                    # Decryption must STILL succeed because master key is persistent!
-                    decrypted = token_cipher.decrypt_token(encrypted)
-                    self.assertEqual(decrypted, original_plain)
-
-                    # Restore original data
-                    with open(s_path, "w", encoding="utf-8") as f:
-                        json.dump(original_data, f)
-                except Exception:
-                    pass
-
-        # Decryption must match
+        # Clear LRU decrypt cache to verify genuine PBKDF2 + HMAC decryption
+        token_cipher.clear_decrypt_cache()
         decrypted = token_cipher.decrypt_token(encrypted)
         self.assertEqual(decrypted, original_plain)
 
@@ -67,12 +44,10 @@ class TestTokenCipherPersistenceAndHealing(unittest.TestCase):
         self.assertIsNone(result)
         self.assertNotIn("HMAC tag mismatch", output)
 
-    def test_auto_repair_database_from_cookies_folder(self):
-        """auto_repair_database must repair undecryptable cookie_full using disk files."""
+    def test_auto_repair_database_marks_undecryptable_oauth_expired(self):
+        """auto_repair_database must detect undecryptable OAuth access_token rows and flag them EXPIRED."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test_accounts.db")
-            cookies_dir = os.path.join(tmpdir, "Cookies")
-            os.makedirs(cookies_dir, exist_ok=True)
 
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
@@ -81,34 +56,38 @@ class TestTokenCipherPersistenceAndHealing(unittest.TestCase):
                     id INTEGER PRIMARY KEY,
                     file_name TEXT,
                     email TEXT,
-                    cookie_full TEXT
+                    access_token TEXT,
+                    refresh_token TEXT,
+                    status TEXT,
+                    display_message TEXT
                 )
             """)
-            # Insert row with broken ciphertext
-            broken_enc = "enc:v1:AAAA_invalid_ciphertext_that_cannot_decrypt_BBBB"
-            cur.execute("INSERT INTO accounts VALUES (1, 'user1.txt', 'user1@example.com', ?)", (broken_enc,))
+            # Tamper a genuine encrypted OAuth token so HMAC verification fails cleanly
+            valid_enc = token_cipher.encrypt_token("eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoic2Vzc2lvbiJ9.valid")
+            broken_enc = valid_enc[:-4] + ("AAAA" if not valid_enc.endswith("AAAA") else "BBBB")
+            cur.execute(
+                "INSERT INTO accounts VALUES (1, 'oauth_user1.oauth', 'user1@example.com', ?, ?, 'READY', 'OK')",
+                (broken_enc, valid_enc),
+            )
+            cur.execute(
+                "INSERT INTO accounts VALUES (2, 'oauth_user2.oauth', 'user2@example.com', ?, ?, 'READY', 'OK')",
+                (valid_enc, valid_enc),
+            )
             conn.commit()
             conn.close()
 
-            # Create file in cookies_dir
-            cookie_content = "test_workos_cookie=session_secret_12345"
-            with open(os.path.join(cookies_dir, "user1.txt"), "w", encoding="utf-8") as f:
-                f.write(cookie_content)
-
-            # Run auto repair
-            repaired = token_cipher.auto_repair_database(db_path, cookies_dir)
+            repaired = token_cipher.auto_repair_database(db_path)
             self.assertEqual(repaired, 1)
 
-            # Verify DB was repaired
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
-            cur.execute("SELECT cookie_full FROM accounts WHERE id = 1")
-            new_cookie = cur.fetchone()[0]
+            cur.execute("SELECT id, status, display_message FROM accounts ORDER BY id ASC")
+            rows = cur.fetchall()
             conn.close()
 
-            self.assertTrue(new_cookie.startswith("enc:v1:"))
-            decrypted = token_cipher.decrypt_token(new_cookie)
-            self.assertEqual(decrypted, cookie_content)
+            self.assertEqual(rows[0][1], "EXPIRED")
+            self.assertIn("OAuth", rows[0][2])
+            self.assertEqual(rows[1][1], "READY")
 
 
 if __name__ == "__main__":

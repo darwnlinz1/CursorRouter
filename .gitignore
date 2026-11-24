@@ -2,7 +2,7 @@
 # CursorRouter - Security & Environment GitIgnore
 # ==============================================================================
 
-# 1. CRITICAL SECURITY: User Cookies, Private Master Key & Databases
+# 1. CRITICAL SECURITY: Private OAuth Databases, Master Keys & Local Secrets
 .cursor_master.key
 .master.key
 *.key
@@ -12,13 +12,8 @@
 *.db-shm
 *.sqlite
 *.sqlite3
-
-# Ignore all user cookie files in Cookies directory except sample and gitkeep
-Cookies/*.txt
-Cookies/*.cookie
-Cookies/Archive_Corrupted/
-!Cookies/sample.txt.example
-!Cookies/.gitkeep
+.env
+.env.*
 
 # 2. Build Outputs, Binaries & Standalone Distribution
 dist/

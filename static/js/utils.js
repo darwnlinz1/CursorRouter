@@ -1,4 +1,4 @@
-/* CursorRouter v3.0 — Shared Safe Utilities & API Helpers */
+/* CursorRouter v3.1 — Shared Safe Utilities & API Helpers (Pure OAuth Edition) */
 (function (global) {
   'use strict';
 
@@ -143,51 +143,6 @@
     return { ok: res.ok, status: res.status, data };
   }
 
-  function previewPastedCookies(text) {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return { count: 0, format: 'Trống' };
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.cookies) ? parsed.cookies : [parsed]);
-        const hits = list.filter(x => x && (x.name === 'WorkosCursorSessionToken' || x.WorkosCursorSessionToken));
-        return { count: hits.length, format: 'JSON Cookie' };
-      } catch (_) {
-        return { count: 0, format: 'JSON chưa hợp lệ' };
-      }
-    }
-    const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
-    const netscapeLines = lines.filter(l => {
-      const parts = l.includes('\t') ? l.split('\t') : l.split(/\s+/);
-      return parts.length >= 7 && parts[5].trim() === 'WorkosCursorSessionToken';
-    });
-    if (netscapeLines.length > 0) {
-      const uniq = new Set(netscapeLines.map(l => {
-        const parts = l.includes('\t') ? l.split('\t') : l.split(/\s+/);
-        return parts[6].trim();
-      }));
-      return { count: uniq.size, format: 'Netscape Cookie' };
-    }
-    let count = 0;
-    const formats = new Set();
-    for (const line of lines) {
-      if (line.includes('WorkosCursorSessionToken=')) {
-        count++;
-        formats.add('Header');
-      } else if (line.includes('|') && line.split('|')[0].includes('@')) {
-        count++;
-        formats.add('Email|Cookie');
-      } else if (line.startsWith('eyJ') && line.split('.').length === 3) {
-        count++;
-        formats.add('JWT Token');
-      } else if (line.startsWith('user_') || line.length >= 32) {
-        count++;
-        formats.add('Raw Token');
-      }
-    }
-    return { count, format: formats.size ? Array.from(formats).join(' + ') : 'Tự động phân tích trên server' };
-  }
-
   global.CRUtils = {
     escapeHtml,
     formatSpend,
@@ -198,7 +153,6 @@
     copyToClipboard,
     showToast,
     apiFetch,
-    previewPastedCookies,
   };
   global.escapeHtml = escapeHtml;
   global.formatSpend = formatSpend;

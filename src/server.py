@@ -24,7 +24,7 @@ import threading
 import requests
 
 from flask import Flask, render_template, jsonify, request, Response
-from app_paths import get_templates_dir, get_static_dir, get_data_dir, get_cookies_dir
+from app_paths import get_templates_dir, get_static_dir, get_data_dir
 from account_pool import AccountPoolManager, DB_LOCK, DB_FILE
 from rotating_proxy import RotatingCursorProxy
 from cursor_settings import CursorSettingsManager
@@ -155,7 +155,7 @@ def add_cache_busting_headers(response):
         response.headers["Expires"] = "0"
     return response
 
-pool = AccountPoolManager(cookies_dir=get_cookies_dir())
+pool = AccountPoolManager()
 settings_manager = CursorSettingsManager(workspace_dir=get_data_dir())
 proxy_instance = RotatingCursorProxy(
     proxy_host=os.getenv("CURSOR_PROXY_HOST", "127.0.0.1"),
@@ -628,92 +628,74 @@ def api_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/cookies/open-folder", methods=["GET", "POST"])
-def api_cookies_open_folder():
-    """Mo thu muc Cookies trong Windows Explorer hoac file manager he thong."""
+@app.route("/api/pool/summary", methods=["GET"])
+def api_pool_summary():
+    """Return complete OAuth session pool telemetry (tier breakdown, valid IDE sessions, status counts)."""
     try:
-        cdir = pool.cookies_dir
-        os.makedirs(cdir, exist_ok=True)
-        abs_path = os.path.abspath(cdir)
-        
-        opened = False
-        if sys.platform == "win32" or os.name == "nt":
-            try:
-                os.startfile(abs_path)
-                opened = True
-            except Exception:
-                import subprocess
-                subprocess.Popen(["explorer.exe", abs_path])
-                opened = True
-        elif sys.platform == "darwin":
-            import subprocess
-            subprocess.Popen(["open", abs_path])
-            opened = True
-        else:
-            import subprocess
-            subprocess.Popen(["xdg-open", abs_path])
-            opened = True
-
-        _record_system_event("cookies_open_folder", f"Opened cookies directory: {abs_path}")
-        return jsonify({
-            "success": True,
-            "path": abs_path,
-            "opened": opened,
-            "message": f"Đã mở thư mục Cookies: {abs_path}"
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/cookies/info", methods=["GET"])
-def api_cookies_info():
-    """Lay thong tin thu muc Cookies (duong dan, so luong file, tong so accounts va trang thai quota)."""
-    try:
-        cdir = pool.cookies_dir
-        if not os.path.exists(cdir):
-            os.makedirs(cdir, exist_ok=True)
-        files = [f for f in os.listdir(cdir) if (f.lower().endswith(".txt") or f.lower().endswith(".cookie")) and os.path.isfile(os.path.join(cdir, f))]
         all_accounts = pool.get_all_accounts(include_secrets=False)
-        valid_tokens = sum(1 for a in all_accounts if a.get("has_token") or a.get("access_token"))
-        
-        # Quota status breakdown
-        ready_count = sum(1 for a in all_accounts if (a.get("status") in ("READY", "HIGH_USAGE")) and (a.get("usage_percent", 0) or 0) < 100)
-        tier1_count = sum(1 for a in all_accounts if (a.get("status") in ("READY", "HIGH_USAGE")) and (a.get("usage_percent", 0) or 0) < 50)
-        tier2_count = sum(1 for a in all_accounts if (a.get("status") in ("READY", "HIGH_USAGE")) and 50 <= (a.get("usage_percent", 0) or 0) < 100)
-        exhausted_count = sum(1 for a in all_accounts if a.get("status") == "EXHAUSTED" or (a.get("usage_percent", 0) or 0) >= 100)
+        now_ts = int(time.time())
+        valid_tokens = sum(1 for a in all_accounts if a.get("has_token"))
+        session_tokens = sum(1 for a in all_accounts if a.get("has_token") and a.get("token_type") != "web")
+        ready_count = sum(
+            1 for a in all_accounts
+            if a.get("status") in ("READY", "HIGH_USAGE")
+            and (a.get("usage_percent", 0) or 0) < 100
+            and int(a.get("cooldown_until") or 0) <= now_ts
+        )
+        tier1_count = sum(
+            1 for a in all_accounts
+            if a.get("status") in ("READY", "HIGH_USAGE")
+            and (a.get("usage_percent", 0) or 0) < 50
+            and int(a.get("cooldown_until") or 0) <= now_ts
+        )
+        tier2_count = sum(
+            1 for a in all_accounts
+            if a.get("status") in ("READY", "HIGH_USAGE")
+            and 50 <= (a.get("usage_percent", 0) or 0) < 100
+            and int(a.get("cooldown_until") or 0) <= now_ts
+        )
+        exhausted_count = sum(
+            1 for a in all_accounts
+            if a.get("status") == "EXHAUSTED"
+            or (a.get("usage_percent", 0) or 0) >= 100
+            or int(a.get("cooldown_until") or 0) > now_ts
+        )
         pending_count = sum(1 for a in all_accounts if a.get("status") == "PENDING")
-        arch_dir = os.path.join(cdir, "Archive_Corrupted")
-        archived_count = len([f for f in os.listdir(arch_dir) if os.path.isfile(os.path.join(arch_dir, f))]) if os.path.exists(arch_dir) else 0
+        expired_count = sum(1 for a in all_accounts if a.get("status") == "EXPIRED")
 
         return jsonify({
             "success": True,
-            "path": os.path.abspath(cdir),
-            "count": len(files),
+            "auth_mode": "oauth_pkce",
             "total_accounts": len(all_accounts),
             "valid_tokens": valid_tokens,
+            "session_tokens": session_tokens,
             "ready_count": ready_count,
             "tier1_count": tier1_count,
             "tier2_count": tier2_count,
             "exhausted_count": exhausted_count,
             "pending_count": pending_count,
-            "archived_count": archived_count,
-            "files": files[:30]
+            "expired_count": expired_count,
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/api/cookies/quarantine", methods=["POST"])
-def api_cookies_quarantine():
-    """Tu dong cach ly cac file cookie hong / 0 byte / expired vao Cookies/Archive_Corrupted."""
+
+@app.route("/api/accounts/sync-all", methods=["POST"])
+def api_accounts_sync_all():
+    """Trigger fast HTTP/2 multiplexed quota sync across all OAuth sessions in the pool."""
     try:
-        count = pool.quarantine_corrupted_cookies()
-        _record_system_event("cookies_quarantine", f"Quarantined {count} corrupted/expired cookies into Archive_Corrupted")
+        started = pool.start_startup_quota_sync(max_workers=12, force=True)
+        _record_system_event("oauth_sync_all", "Triggered HTTP/2 quota sync across OAuth pool")
+        all_accounts = pool.get_all_accounts(include_secrets=False)
         return jsonify({
             "success": True,
-            "quarantined": count,
-            "message": f"Đã cách ly {count} file cookie hỏng vào Cookies/Archive_Corrupted!"
+            "sync_started": started,
+            "total_accounts": len(all_accounts),
+            "message": f"Đã kích hoạt đồng bộ HTTP/2 cho {len(all_accounts)} phiên OAuth!",
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route("/api/ai/predict-quota", methods=["GET", "POST"])
 def api_ai_predict_quota():
@@ -730,51 +712,6 @@ def api_ai_predict_quota():
             "success": True,
             "target": email or acc_id or "active",
             "prediction": pred
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/cookies/convert", methods=["POST"])
-def api_cookies_convert():
-    """1-Click Convert Cookies to Tokens: Quet va exchange toan bo sang Tokens voi 12 luong song song."""
-    try:
-        scanned = pool.scan_cookies_folder()
-        started = pool.start_startup_quota_sync(max_workers=12, force=True)
-        _record_system_event("cookie_convert", f"1-Click convert initiated. Scanned: {scanned}, workers: 12")
-        all_accounts = pool.get_all_accounts(include_secrets=False)
-        return jsonify({
-            "success": True,
-            "scanned": scanned,
-            "sync_started": started,
-            "total_accounts": len(all_accounts),
-            "message": f"Đã quét {scanned} cookies và kích hoạt tiến trình nạp token với 12 luồng song song!"
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route("/api/cookies/paste", methods=["POST"])
-def api_cookies_paste():
-    """Nhan 1 hoac nhieu cookie dan truc tiep (Raw, Netscape, JSON, Header) va kich hoat dong bo HTTP/2."""
-    try:
-        data = request.get_json(silent=True) or {}
-        raw_text = data.get("content") or data.get("cookies") or data.get("text") or ""
-        auto_convert = bool(data.get("auto_convert", True))
-        if not raw_text or not str(raw_text).strip():
-            return jsonify({"success": False, "error": "Nội dung cookie đang trống"}), 400
-
-        res = pool.import_pasted_cookies(str(raw_text))
-        if not res.get("success"):
-            return jsonify(res), 400
-
-        sync_started = False
-        if auto_convert:
-            sync_started = pool.start_startup_quota_sync(max_workers=12, force=True)
-
-        _record_system_event("cookie_paste", f"Pasted {res.get('parsed', 0)} cookies (formats: {res.get('formats')})")
-        return jsonify({
-            **res,
-            "sync_started": sync_started,
-            "message": f"Đã nạp {res.get('parsed', 0)} cookie ({', '.join(res.get('formats', []))}) và kích hoạt đồng bộ HTTP/2!",
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -925,60 +862,35 @@ def api_capture_active_session():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route("/api/cookies/upload", methods=["POST"])
-def api_cookies_upload():
-    """Nhan file cookie tu giao dien Dropzone (.txt, .cookie, .json), luu vao thu muc Cookies va tu dong convert."""
+@app.route("/api/auth/pkce/sessions", methods=["GET"])
+def api_pkce_sessions():
+    """List active or recent interactive OAuth PKCE sessions."""
+    with _PKCE_SESSIONS_LOCK:
+        items = list(_PKCE_SESSIONS.values())
+    items.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+    return jsonify({"success": True, "sessions": items[:10]})
+
+
+@app.route("/api/accounts/import-token", methods=["POST"])
+def api_import_oauth_token():
+    """Import or restore a Cursor OAuth session token directly (for cross-machine backup restore)."""
     try:
-        if "file" not in request.files and "files" not in request.files:
-            return jsonify({"success": False, "error": "Không tìm thấy file tải lên"}), 400
-        
-        uploaded_files = request.files.getlist("file") or request.files.getlist("files")
-        saved_count = 0
-        cdir = pool.cookies_dir
-        os.makedirs(cdir, exist_ok=True)
-        
-        for f in uploaded_files:
-            fname = os.path.basename(f.filename or "")
-            if not fname:
-                continue
-            low = fname.lower()
-            if not (low.endswith(".txt") or low.endswith(".cookie") or low.endswith(".json")):
-                fname = f"{fname}.txt"
-            target_path = os.path.join(cdir, fname)
-            f.save(target_path)
-            saved_count += 1
-            
-        scanned = pool.scan_cookies_folder()
-        pool.start_startup_quota_sync(max_workers=12, force=True)
-        return jsonify({
-            "success": True,
-            "saved": saved_count,
-            "scanned": scanned,
-            "message": f"Đã lưu {saved_count} file và khởi chạy đồng bộ HTTP/2!"
-        })
+        data = request.get_json(silent=True) or {}
+        access_token = (data.get("access_token") or data.get("token") or "").strip()
+        refresh_token = (data.get("refresh_token") or "").strip() or None
+        if not access_token:
+            return jsonify({"success": False, "error": "Thiếu OAuth access_token"}), 400
+        res = pool.upsert_session_account(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            source="oauth_import",
+        )
+        if res.get("success"):
+            return jsonify(res)
+        return jsonify(res), 400
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route("/api/scan", methods=["POST"])
-def api_scan():
-    """Quet thu muc Cookies de nap them tai khoan voi tinh nang chong spam va debounce an toan."""
-    global _LAST_SCAN_TIME
-    now = time.time()
-    if now - _LAST_SCAN_TIME < 1.5:
-        return jsonify({"success": True, "added": 0, "throttled": True, "message": "Quét đang được xử lý hoặc vừa hoàn tất"})
-
-    if not _SCAN_LOCK.acquire(blocking=False):
-        return jsonify({"success": True, "added": 0, "throttled": True, "message": "Tiến trình quét đang chạy ngầm"})
-
-    try:
-        count = pool.scan_cookies_folder()
-        proxy_instance.pool.load_cache_from_db()
-        _LAST_SCAN_TIME = time.time()
-        return jsonify({"success": True, "added": count})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        _SCAN_LOCK.release()
 
 @app.route("/api/refresh/<int:account_id>", methods=["POST"])
 def api_refresh(account_id):
@@ -988,7 +900,7 @@ def api_refresh(account_id):
         if profile:
             return jsonify({"success": True, "profile": profile})
         else:
-            return jsonify({"success": False, "error": "Khong the cap nhat (Token hoac Cookie khong hop le)"}), 400
+            return jsonify({"success": False, "error": "Phiên OAuth không hợp lệ hoặc đã hết hạn — vui lòng đăng nhập lại bằng OAuth"}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1013,12 +925,11 @@ def api_switch(account_id):
         success = pool.switch_to_account(account_id, auto_reload=auto_reload, auto_continue=auto_cont, reset_mode=reset_mode)
         if success:
             active = pool.sync_active_from_cursor() or pool.storage.get_active_account()
-            tok_type = (active or {}).get("token_type") or "unknown"
+            tok_type = (active or {}).get("token_type") or "session"
             warning = None
             if tok_type == "web":
                 warning = (
-                    "Tài khoản này đang dùng Web Cookie token (Cursor chặn PKCE với lỗi FRESH_SIGN_IN_REQUIRED). "
-                    "Cursor IDE có thể báo 'Authentication error' khi chat — hãy dùng cookie vừa đăng nhập mới hoặc bấm 'Lưu Acc Từ Cursor' sau khi đăng nhập IDE."
+                    "Phiên này không phải Desktop OAuth Session. Hãy đăng nhập lại bằng nút '+ Đăng Nhập Thêm Acc (OAuth)'."
                 )
             return jsonify({"success": True, "active": active, "token_type": tok_type, "warning": warning})
         else:
@@ -1395,7 +1306,7 @@ def api_clean_high_usage():
 
 @app.route("/api/accounts/<int:account_id>", methods=["DELETE"])
 def api_delete_account(account_id):
-    """Xoa 1 tai khoan va file cookie tuong ung khoi thu muc Cookies."""
+    """Xoa 1 phien tai khoan OAuth khoi SQLite pool."""
     try:
         ok = pool.delete_single_account(account_id)
         proxy_instance.pool.load_cache_from_db()

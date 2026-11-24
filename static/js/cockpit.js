@@ -1,4 +1,4 @@
-/* CursorRouter v3.0 — Cockpit State, Pool Explorer, Cookie Workbench & Telemetry */
+/* CursorRouter v3.1 — Pure OAuth Cockpit State, Onboarding Hub, Pool Explorer & Telemetry */
 (function (global) {
   'use strict';
 
@@ -19,9 +19,9 @@
     offlineNotificationDismissed: false,
     startupBannerDismissed: false,
     batchPollTimer: null,
-    convertPollTimer: null,
+    syncPollTimer: null,
     sseConnected: false,
-    workbenchCollapsed: localStorage.getItem('cursor_workbench_collapsed') === 'true',
+    hubCollapsed: localStorage.getItem('cursor_oauth_hub_collapsed') === 'true',
   };
 
   global.CRState = state;
@@ -37,50 +37,22 @@
     }
   }
 
-  /* ---------- WORKBENCH COLLAPSE & TABS ---------- */
-  function toggleWorkbench(forceState) {
-    state.workbenchCollapsed = typeof forceState === 'boolean' ? forceState : !state.workbenchCollapsed;
-    localStorage.setItem('cursor_workbench_collapsed', String(state.workbenchCollapsed));
-    const body = document.getElementById('cookie-workbench-body');
-    const chev = document.getElementById('workbench-chevron');
-    if (body) body.classList.toggle('hidden', state.workbenchCollapsed);
-    if (chev) chev.style.transform = state.workbenchCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  /* ---------- OAUTH ONBOARDING HUB ---------- */
+  function toggleOAuthHub(forceState) {
+    state.hubCollapsed = typeof forceState === 'boolean' ? forceState : !state.hubCollapsed;
+    localStorage.setItem('cursor_oauth_hub_collapsed', String(state.hubCollapsed));
+    const body = document.getElementById('oauth-hub-body');
+    const chev = document.getElementById('oauth-hub-chevron');
+    if (body) body.classList.toggle('hidden', state.hubCollapsed);
+    if (chev) chev.style.transform = state.hubCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
   }
 
-  function switchIngestTab(tab) {
-    const isPaste = tab === 'paste';
-    const pastePane = document.getElementById('ingest-pane-paste');
-    const dropPane = document.getElementById('ingest-pane-drop');
-    const btnPaste = document.getElementById('ingest-tab-paste');
-    const btnDrop = document.getElementById('ingest-tab-drop');
-    if (pastePane) pastePane.classList.toggle('hidden', !isPaste);
-    if (dropPane) dropPane.classList.toggle('hidden', isPaste);
-    if (btnPaste) btnPaste.classList.toggle('active', isPaste);
-    if (btnDrop) btnDrop.classList.toggle('active', !isPaste);
+  function toggleTokenRestoreDrawer() {
+    const drawer = document.getElementById('oauth-restore-drawer');
+    if (drawer) drawer.classList.toggle('hidden');
   }
 
-  function onPasteInputChanged() {
-    const ta = document.getElementById('cookie-paste-input');
-    const badge = document.getElementById('paste-detect-badge');
-    const btn = document.getElementById('btn-submit-paste');
-    if (!ta || !badge) return;
-    const info = U.previewPastedCookies(ta.value);
-    if (info.count > 0) {
-      badge.textContent = `Phát hiện ${info.count} cookie (${info.format})`;
-      badge.className = 'pill pill-emerald';
-      if (btn) btn.disabled = false;
-    } else if (ta.value.trim().length > 0) {
-      badge.textContent = info.format;
-      badge.className = 'pill pill-amber';
-      if (btn) btn.disabled = false;
-    } else {
-      badge.textContent = 'Sẵn sàng dán (Raw / Netscape / JSON / JWT)';
-      badge.className = 'pill';
-      if (btn) btn.disabled = true;
-    }
-  }
-
-  function _revealNewlyImportedAccounts() {
+  function _revealNewlyAddedAccounts() {
     state.statusFilter = 'ALL';
     state.searchQuery = '';
     state.currentPage = 1;
@@ -90,44 +62,13 @@
     document.querySelectorAll('.kpi-card').forEach(c => c.classList.toggle('active-filter', c.dataset.filter === 'ALL'));
   }
 
-  async function submitPastedCookies() {
-    const ta = document.getElementById('cookie-paste-input');
-    const btn = document.getElementById('btn-submit-paste');
-    if (!ta || !ta.value.trim()) {
-      U.showToast('Vui lòng dán ít nhất 1 cookie', 'warn');
-      return;
-    }
-    if (btn) btn.disabled = true;
-    U.showToast('Đang nạp & đồng bộ cookie qua HTTP/2...', 'loading');
-    try {
-      const { ok, data } = await U.apiFetch('/api/cookies/paste', {
-        method: 'POST',
-        json: { content: ta.value, auto_convert: true },
-      });
-      if (ok && data && data.success) {
-        U.showToast(data.message || `Đã nạp ${data.parsed} cookie!`, 'success');
-        ta.value = '';
-        onPasteInputChanged();
-        _revealNewlyImportedAccounts();
-        startConvertProgressPolling();
-        await Promise.allSettled([loadCookiesInfo(), loadAccounts()]);
-      } else {
-        U.showToast('Lỗi: ' + ((data && data.error) || 'Không thể nạp cookie'), 'error');
-      }
-    } catch (err) {
-      U.showToast('Lỗi kết nối server khi dán cookie', 'error');
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
-
   let _pkcePollTimer = null;
   let _pkceSessionId = null;
   let _pkceLoginUrl = '';
 
   async function startInteractiveOAuthLogin(openBrowser) {
     cancelInteractiveOAuthLogin(true);
-    U.showToast('Đang tạo link đăng nhập Cursor OAuth PKCE chính thức...', 'loading');
+    U.showToast('Đang tạo phiên đăng nhập Cursor OAuth PKCE chính thức...', 'loading');
     try {
       const { ok, data } = await U.apiFetch('/api/auth/pkce/start', {
         method: 'POST',
@@ -144,10 +85,10 @@
       const urlEl = document.getElementById('oauth-pkce-url');
       const stEl = document.getElementById('oauth-pkce-status');
       if (urlEl) urlEl.value = _pkceLoginUrl;
-      if (stEl) stEl.textContent = 'Đang chờ bạn xác nhận đăng nhập trên trình duyệt (tự động nhận IDE Session 60 ngày)...';
+      if (stEl) stEl.textContent = 'Đang chờ bạn bấm "Yes, Log In" trên trình duyệt (tự động nhận IDE Session 60 ngày)...';
       if (box) box.classList.remove('hidden');
 
-      U.showToast('Đã tạo phiên OAuth! Hãy bấm "Yes, Log In" trên trình duyệt hoặc copy link mở tab Ẩn danh.', 'info');
+      U.showToast('Đã tạo link OAuth! Xác nhận trên trình duyệt hoặc bấm Copy Link mở tab Ẩn danh.', 'info');
 
       _pkcePollTimer = setInterval(async () => {
         if (!_pkceSessionId) return;
@@ -160,9 +101,9 @@
           _pkceSessionId = null;
           if (box) box.classList.add('hidden');
           const acc = r.data.account || {};
-          U.showToast(`Đã thêm IDE Session thành công: ${acc.email || 'OK'}!`, 'success');
-          _revealNewlyImportedAccounts();
-          await Promise.allSettled([loadAccounts(), loadCookiesInfo()]);
+          U.showToast(`Đã thêm phiên OAuth IDE thành công: ${acc.email || 'OK'}!`, 'success');
+          _revealNewlyAddedAccounts();
+          await Promise.allSettled([loadAccounts(), loadPoolSummary()]);
         } else if (st === 'error' || st === 'expired' || st === 'cancelled') {
           clearInterval(_pkcePollTimer);
           _pkcePollTimer = null;
@@ -170,7 +111,7 @@
           if (stEl) stEl.textContent = r.data.error || 'Phiên OAuth đã kết thúc.';
           if (st !== 'cancelled') U.showToast(r.data.error || 'Phiên OAuth hết hạn', 'warn');
         }
-      }, 1600);
+      }, 1500);
     } catch (_) {
       U.showToast('Lỗi kết nối khi khởi tạo OAuth PKCE', 'error');
     }
@@ -203,8 +144,8 @@
       const { ok, data } = await U.apiFetch('/api/accounts/capture-active', { method: 'POST' });
       if (ok && data && data.success) {
         U.showToast(data.message || `Đã lưu ${data.email} vào pool!`, 'success');
-        _revealNewlyImportedAccounts();
-        await Promise.allSettled([loadAccounts(), loadCookiesInfo(), global.loadActiveStatus()]);
+        _revealNewlyAddedAccounts();
+        await Promise.allSettled([loadAccounts(), loadPoolSummary(), global.loadActiveStatus()]);
       } else {
         U.showToast((data && data.error) || 'Không thể đọc phiên Cursor hiện tại', 'warn');
       }
@@ -213,62 +154,47 @@
     }
   }
 
-  /* ---------- COOKIE FOLDER / DROPZONE / CONVERT ---------- */
-  async function openCookieFolder() {
+  async function submitOAuthTokenRestore() {
+    const accInp = document.getElementById('oauth-restore-access');
+    const refInp = document.getElementById('oauth-restore-refresh');
+    const access_token = (accInp && accInp.value || '').trim();
+    const refresh_token = (refInp && refInp.value || '').trim();
+    if (!access_token) {
+      U.showToast('Vui lòng nhập OAuth Access Token (JWT)', 'warn');
+      return;
+    }
+    U.showToast('Đang xác thực & khôi phục phiên OAuth...', 'loading');
     try {
-      const { ok, data } = await U.apiFetch('/api/cookies/open-folder', { method: 'POST' });
+      const { ok, data } = await U.apiFetch('/api/accounts/import-token', {
+        method: 'POST',
+        json: { access_token, refresh_token: refresh_token || undefined },
+      });
       if (ok && data && data.success) {
-        U.showToast('Đã mở thư mục Cookies trong Explorer', 'success');
+        U.showToast(data.message || 'Đã khôi phục phiên OAuth!', 'success');
+        if (accInp) accInp.value = '';
+        if (refInp) refInp.value = '';
+        toggleTokenRestoreDrawer();
+        _revealNewlyAddedAccounts();
+        await Promise.allSettled([loadAccounts(), loadPoolSummary()]);
       } else {
-        U.showToast('Không thể mở thư mục Cookies', 'error');
+        U.showToast((data && data.error) || 'OAuth token không hợp lệ', 'error');
       }
     } catch (_) {
-      U.showToast('Lỗi kết nối khi mở thư mục', 'error');
+      U.showToast('Lỗi kết nối khi khôi phục token', 'error');
     }
   }
 
-  function copyCookieFolderPath() {
-    const el = document.getElementById('cookie-folder-path');
-    if (el) U.copyToClipboard(el.textContent.trim(), 'Đã sao chép đường dẫn thư mục Cookies');
-  }
-
-  async function loadCookiesInfo() {
+  async function loadPoolSummary() {
     try {
-      const { ok, data } = await U.apiFetch('/api/cookies/info');
+      const { ok, data } = await U.apiFetch('/api/pool/summary');
       if (!ok || !data || !data.success) return;
       const setTxt = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-      setTxt('cookie-folder-path', data.path || 'Cookies/');
-      setTxt('cookie-files-count', data.count ?? 0);
-      setTxt('cookie-total-accounts', data.total_accounts ?? 0);
-      setTxt('cookie-valid-tokens', data.valid_tokens ?? 0);
-      setTxt('cookie-tier1-count', `${data.tier1_count ?? 0} T1`);
-      setTxt('cookie-tier2-count', `${data.tier2_count ?? 0} T2`);
-      setTxt('cookie-exhausted-count', `${data.exhausted_count ?? 0} Cạn`);
-      const archWrap = document.getElementById('cookie-archived-container');
-      if (archWrap) {
-        if ((data.archived_count || 0) > 0) {
-          archWrap.classList.remove('hidden');
-          setTxt('cookie-archived-count', data.archived_count);
-        } else {
-          archWrap.classList.add('hidden');
-        }
-      }
+      setTxt('oauth-total-accounts', data.total_accounts ?? 0);
+      setTxt('oauth-valid-sessions', data.session_tokens ?? data.valid_tokens ?? 0);
+      setTxt('oauth-tier1-count', `${data.tier1_count ?? 0} T1`);
+      setTxt('oauth-tier2-count', `${data.tier2_count ?? 0} T2`);
+      setTxt('oauth-exhausted-count', `${data.exhausted_count ?? 0} Cạn`);
     } catch (_) {}
-  }
-
-  async function quarantineCorruptedCookies() {
-    U.showToast('Đang quét & cách ly file cookie hỏng...', 'loading');
-    try {
-      const { ok, data } = await U.apiFetch('/api/cookies/quarantine', { method: 'POST' });
-      if (ok && data && data.success) {
-        U.showToast(data.message || `Đã cách ly ${data.quarantined || 0} file hỏng`, 'success');
-        await Promise.allSettled([loadCookiesInfo(), loadAccounts()]);
-      } else {
-        U.showToast('Lỗi cách ly: ' + ((data && data.error) || ''), 'error');
-      }
-    } catch (_) {
-      U.showToast('Lỗi kết nối server', 'error');
-    }
   }
 
   function renderLiveChips(containerId, items) {
@@ -282,12 +208,12 @@
     }).join('');
   }
 
-  function startConvertProgressPolling() {
-    const wrap = document.getElementById('cookie-convert-progress');
+  function startOAuthSyncPolling() {
+    const wrap = document.getElementById('oauth-sync-progress');
     if (wrap) wrap.classList.remove('hidden');
-    if (state.convertPollTimer) clearInterval(state.convertPollTimer);
+    if (state.syncPollTimer) clearInterval(state.syncPollTimer);
     let ticks = 0;
-    state.convertPollTimer = setInterval(async () => {
+    state.syncPollTimer = setInterval(async () => {
       ticks++;
       try {
         const { ok, data } = await U.apiFetch('/api/startup-sync/status');
@@ -295,9 +221,9 @@
         const ss = data.startup_sync;
         const total = ss.total || 1;
         const pct = Math.min(100, Math.round(((ss.current || 0) / total) * 100));
-        const bar = document.getElementById('cookie-convert-bar');
-        const ratio = document.getElementById('cookie-convert-ratio');
-        const statusEl = document.getElementById('cookie-convert-status');
+        const bar = document.getElementById('oauth-sync-bar');
+        const ratio = document.getElementById('oauth-sync-ratio');
+        const statusEl = document.getElementById('oauth-sync-status');
         if (bar) bar.style.width = `${pct}%`;
         if (ratio) ratio.textContent = `${ss.current || 0}/${ss.total || 0} (${pct}%)`;
         if (statusEl) {
@@ -305,89 +231,40 @@
             ? `Đang đồng bộ (${ss.transport || 'HTTP/2'}): ${ss.current_account || '...'}`
             : `Hoàn tất trong ${ss.duration_seconds || 0}s · Ready: ${ss.ready_count || 0} · Expired: ${ss.expired_count || 0}`;
         }
-        renderLiveChips('cookie-live-chips', ss.recent_results);
+        renderLiveChips('oauth-live-chips', ss.recent_results);
         if (!ss.running || ticks > 150) {
-          clearInterval(state.convertPollTimer);
-          state.convertPollTimer = null;
-          await Promise.allSettled([loadAccounts(), loadCookiesInfo()]);
+          clearInterval(state.syncPollTimer);
+          state.syncPollTimer = null;
+          await Promise.allSettled([loadAccounts(), loadPoolSummary()]);
           setTimeout(() => { if (wrap) wrap.classList.add('hidden'); }, 4500);
         }
       } catch (_) {}
     }, 350);
   }
 
-  async function convertCookiesToTokens() {
-    U.showToast('Đang quét thư mục Cookies & chuyển đổi song song...', 'loading');
+  async function syncAllOAuthSessions() {
+    U.showToast('Đang đồng bộ toàn bộ phiên OAuth qua HTTP/2 Multiplexing...', 'loading');
     try {
-      const { ok, data } = await U.apiFetch('/api/cookies/convert', { method: 'POST' });
+      const { ok, data } = await U.apiFetch('/api/accounts/sync-all', { method: 'POST' });
       if (ok && data && data.success) {
         U.showToast(data.message || 'Đang đồng bộ HTTP/2...', 'success');
-        startConvertProgressPolling();
-        await loadCookiesInfo();
+        startOAuthSyncPolling();
+        await loadPoolSummary();
       } else {
-        U.showToast('Lỗi chuyển đổi: ' + ((data && data.error) || ''), 'error');
+        U.showToast('Lỗi đồng bộ: ' + ((data && data.error) || ''), 'error');
       }
     } catch (_) {
       U.showToast('Lỗi kết nối server', 'error');
     }
   }
 
-  function handleCookieDragOver(event) {
-    event.preventDefault();
-    const dz = document.getElementById('cookie-drop-area');
-    if (dz) dz.classList.add('drag-over');
-  }
-
-  function handleCookieDragLeave(event) {
-    event.preventDefault();
-    const dz = document.getElementById('cookie-drop-area');
-    if (dz) dz.classList.remove('drag-over');
-  }
-
-  function handleCookieDrop(event) {
-    event.preventDefault();
-    const dz = document.getElementById('cookie-drop-area');
-    if (dz) dz.classList.remove('drag-over');
-    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      uploadCookieFiles(event.dataTransfer.files);
-    }
-  }
-
-  function handleCookieFileSelect(event) {
-    if (event.target && event.target.files && event.target.files.length > 0) {
-      uploadCookieFiles(event.target.files);
-      event.target.value = '';
-    }
-  }
-
-  async function uploadCookieFiles(files) {
-    const fd = new FormData();
-    for (const f of files) fd.append('files', f);
-    U.showToast(`Đang tải lên ${files.length} file cookie...`, 'loading');
-    try {
-      const res = await fetch('/api/cookies/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        U.showToast(data.message || 'Đã tải lên và bắt đầu đồng bộ!', 'success');
-        _revealNewlyImportedAccounts();
-        startConvertProgressPolling();
-        await Promise.allSettled([loadCookiesInfo(), loadAccounts()]);
-      } else {
-        U.showToast('Lỗi tải lên: ' + (data.error || ''), 'error');
-      }
-    } catch (_) {
-      U.showToast('Lỗi kết nối khi tải file', 'error');
-    }
-  }
-
   /* ---------- ACCOUNT POOL FILTERING, SORTING & RENDERING ---------- */
   function getFilteredAccounts() {
     const q = (state.searchQuery || '').trim().toLowerCase();
-    const nowSec = Date.now() / 1000;
 
     const list = state.allAccounts.filter(a => {
       if (q) {
-        const hay = `${a.email || ''} ${a.file_name || ''} ${a.display_name || ''} ${a.fingerprint_id || ''}`.toLowerCase();
+        const hay = `${a.email || ''} ${a.display_name || ''} ${a.fingerprint_id || ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       const tier = U.getQuotaTier(a).key;
@@ -401,7 +278,6 @@
       return true;
     });
 
-    // Strict sort: Active #1 -> Tier 1 -> Tier 2 -> Pending -> Cooldown -> Expired
     const rankOf = (a) => {
       if (a.is_active) return 0;
       const t = U.getQuotaTier(a).key;
@@ -465,18 +341,18 @@
     setTxt('filter-count-pending', pending);
     setTxt('filter-count-expired', expired);
 
-    setTxt('cookie-tier1-count', `${tier1} T1`);
-    setTxt('cookie-tier2-count', `${tier2} T2`);
-    setTxt('cookie-exhausted-count', `${cooldown} Cạn`);
+    setTxt('oauth-total-accounts', total);
+    setTxt('oauth-tier1-count', `${tier1} T1`);
+    setTxt('oauth-tier2-count', `${tier2} T2`);
+    setTxt('oauth-exhausted-count', `${cooldown} Cạn`);
 
-    // Auto-expand cookie workbench when pool is completely empty
-    if (total === 0 && state.workbenchCollapsed) {
-      toggleWorkbench(false);
+    if (total === 0 && state.hubCollapsed) {
+      toggleOAuthHub(false);
     }
   }
 
   function getDisplayedEmail(acc) {
-    const raw = acc.email || acc.file_name || `Account #${acc.id}`;
+    const raw = acc.email || `OAuth Account #${acc.id}`;
     const shouldMask = state.globalMaskEmails && !state.unmaskedIds.has(acc.id);
     return shouldMask ? U.maskEmail(raw) : raw;
   }
@@ -523,7 +399,7 @@
 
     if (displayList.length === 0) {
       const emptyMsg = state.allAccounts.length === 0
-        ? 'Chưa có tài khoản nào trong pool. Dán cookie hoặc kéo thả file ở khung phía trên để bắt đầu!'
+        ? 'Chưa có phiên OAuth nào trong pool. Bấm "+ Đăng Nhập Thêm Acc (OAuth)" hoặc "Lưu Acc Từ Cursor" ở khung trên để bắt đầu!'
         : 'Không tìm thấy tài khoản phù hợp với bộ lọc hiện tại.';
       if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:36px;color:var(--text-muted);">${U.escapeHtml(emptyMsg)}</td></tr>`;
       if (cardsGrid) cardsGrid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-muted);">${U.escapeHtml(emptyMsg)}</div>`;
@@ -536,20 +412,16 @@
         const pct = Math.round(Number(a.usage_percent || 0));
         const tier = U.getQuotaTier(a);
         const emailShown = U.escapeHtml(getDisplayedEmail(a));
-        const fileShown = U.escapeHtml(a.file_name || '');
         const nameShown = U.escapeHtml(a.display_name || '—');
         const fpId = U.escapeHtml(a.fingerprint_id || `FP-${a.id}`);
         const spendTxt = U.formatSpend(a.total_spend, a.display_threshold || 200);
         const prof = a.config_profile || 'default';
         const isCustomProf = prof && !['default', 'agent_turbo', 'cost_saver', 'privacy_stealth'].includes(prof);
         const rowCls = a.is_active ? 'row-active' : (tier.key === 'cooldown' || tier.key === 'expired' ? 'row-cooldown' : '');
-
-        const tokType = (a.token_type || '').toLowerCase();
-        const tokBadge = tokType === 'session'
-          ? '<span class="pill pill-emerald" title="Desktop IDE Session Token — hoạt động đầy đủ AI Chat & Quota">IDE Session</span>'
-          : (tokType === 'web'
-            ? '<span class="pill pill-amber" title="Web Cookie Only (Cursor chặn PKCE với FRESH_SIGN_IN_REQUIRED). Chỉ xem được Quota — hãy dùng cookie vừa login mới hoặc bấm Lưu Acc Từ Cursor.">Web Only</span>'
-            : '');
+        const tokType = (a.token_type || 'session').toLowerCase();
+        const tokBadge = tokType === 'web'
+          ? '<span class="pill pill-amber" title="Token không phải IDE Session — hãy đăng nhập lại bằng OAuth">Cần OAuth lại</span>'
+          : '<span class="pill pill-emerald" title="OAuth Desktop IDE Session Token (60 ngày)">OAuth IDE</span>';
 
         return `
           <tr class="${rowCls}" data-account-id="${a.id}">
@@ -562,7 +434,7 @@
                 ${state.globalMaskEmails ? `<button class="btn btn-ghost btn-xs" data-action="toggle-mask" data-id="${a.id}" title="Hiện/Ẩn email">👁</button>` : ''}
               </div>
               <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
-                <span class="mono text-muted truncate" style="font-size:10.5px;max-width:170px;">${fileShown}</span>
+                <span class="mono text-muted" style="font-size:10.5px;">${U.escapeHtml(a.masked_token || 'OAuth Encrypted')}</span>
                 <button class="pill pill-clickable" data-action="inspect-fp" data-id="${a.id}" title="Xem Hardware Fingerprint">FP:${fpId}</button>
               </div>
             </td>
@@ -588,9 +460,9 @@
             </td>
             <td class="sticky-actions">
               <div style="display:inline-flex;align-items:center;gap:5px;">
-                <button class="btn btn-xs" data-action="copy-token" data-id="${a.id}" title="Sao chép Access Token">Token</button>
+                <button class="btn btn-xs" data-action="copy-token" data-id="${a.id}" title="Sao chép OAuth Access Token">Token</button>
                 <button class="btn btn-xs" data-action="refresh" data-id="${a.id}" title="Làm mới Quota">↻</button>
-                <button class="btn btn-xs ${a.is_active ? 'btn-emerald' : 'btn-primary'}" data-action="switch" data-id="${a.id}" title="Nạp tài khoản vào Cursor">
+                <button class="btn btn-xs ${a.is_active ? 'btn-emerald' : 'btn-primary'}" data-action="switch" data-id="${a.id}" title="Nạp phiên OAuth vào Cursor">
                   ${a.is_active ? 'Đang Dùng' : 'Dùng'}
                 </button>
                 <button class="btn btn-xs btn-rose" data-action="delete" data-id="${a.id}" title="Xóa tài khoản">✕</button>
@@ -671,7 +543,7 @@
         toggleCardEmailMask(id);
       } else if (action === 'delete') {
         const acc = state.allAccounts.find(x => x.id === id);
-        await deleteSingleAccount(id, (acc && (acc.email || acc.file_name)) || `#${id}`);
+        await deleteSingleAccount(id, (acc && acc.email) || `#${id}`);
       }
     };
 
@@ -765,14 +637,14 @@
   }
 
   async function switchToAccount(id) {
-    U.showToast('Đang nạp tài khoản, áp Fingerprint & cập nhật Cursor...', 'loading');
+    U.showToast('Đang nạp phiên OAuth (mã hóa safeStorage), áp Fingerprint & cập nhật Cursor...', 'loading');
     try {
       const { ok, data } = await U.apiFetch(`/api/switch/${id}?reload=true`, { method: 'POST' });
       if (ok && data && data.success) {
         if (data.warning) {
           U.showToast(data.warning, 'warn');
         } else {
-          U.showToast('Đã chuyển tài khoản thành công!', 'success');
+          U.showToast('Đã chuyển tài khoản OAuth thành công!', 'success');
         }
         await Promise.allSettled([global.loadActiveStatus(), loadAccounts()]);
       } else {
@@ -784,14 +656,14 @@
   }
 
   async function autoSwitchBest() {
-    U.showToast('Đang tìm tài khoản Tier 1 / Tier 2 tối ưu nhất...', 'loading');
+    U.showToast('Đang tìm tài khoản OAuth Tier 1 / Tier 2 tối ưu nhất...', 'loading');
     try {
       const { ok, data } = await U.apiFetch('/api/auto-switch', { method: 'POST' });
       if (ok && data && data.success) {
         U.showToast(`Đã chuyển sang ${data.account.email} (${Math.round(data.account.usage_percent || 0)}%)`, 'success');
         await Promise.allSettled([global.loadActiveStatus(), loadAccounts()]);
       } else {
-        U.showToast((data && data.error) || 'Không còn tài khoản khả dụng', 'error');
+        U.showToast((data && data.error) || 'Không còn tài khoản OAuth khả dụng', 'error');
       }
     } catch (_) {
       U.showToast('Lỗi kết nối máy chủ', 'error');
@@ -799,7 +671,7 @@
   }
 
   async function forceRotateAccount() {
-    U.showToast('Đang xoay tua sang tài khoản tiếp theo...', 'loading');
+    U.showToast('Đang xoay tua sang tài khoản OAuth tiếp theo...', 'loading');
     try {
       const { ok, data } = await U.apiFetch('/api/rotate', { method: 'POST', json: { mark_current_exhausted: true } });
       if (ok && data && data.success) {
@@ -822,7 +694,7 @@
         U.showToast(`Cập nhật thành công (${pct}%)`, 'success');
         await Promise.allSettled([loadAccounts(), global.loadActiveStatus()]);
       } else {
-        U.showToast((data && data.error) || 'Không thể cập nhật quota', 'error');
+        U.showToast((data && data.error) || 'Phiên OAuth đã hết hạn — vui lòng đăng nhập lại bằng OAuth', 'error');
       }
     } catch (_) {
       U.showToast('Lỗi kết nối máy chủ', 'error');
@@ -833,7 +705,7 @@
     try {
       const { ok, data } = await U.apiFetch(`/api/accounts/${id}/token`);
       if (ok && data && data.success && data.token) {
-        await U.copyToClipboard(data.token, `Đã sao chép Access Token (${data.email || '#' + id})`);
+        await U.copyToClipboard(data.token, `Đã sao chép OAuth Access Token (${data.email || '#' + id})`);
       } else {
         U.showToast((data && data.error) || 'Tài khoản chưa có token', 'warn');
       }
@@ -843,12 +715,12 @@
   }
 
   async function deleteSingleAccount(id, label) {
-    if (!confirm(`Xóa tài khoản "${label}" và file cookie tương ứng?`)) return;
+    if (!confirm(`Xóa phiên OAuth "${label}" khỏi pool?`)) return;
     try {
       const { ok, data } = await U.apiFetch(`/api/accounts/${id}`, { method: 'DELETE' });
       if (ok && data && data.success) {
         U.showToast(`Đã xóa ${label}`, 'success');
-        await Promise.allSettled([loadAccounts(), loadCookiesInfo()]);
+        await Promise.allSettled([loadAccounts(), loadPoolSummary()]);
       } else {
         U.showToast('Không thể xóa tài khoản', 'error');
       }
@@ -877,7 +749,7 @@
   async function toggleCheckAll() {
     const { ok, data } = await U.apiFetch('/api/check-all', { method: 'POST' });
     if (ok && data && data.success) {
-      U.showToast('Đã khởi chạy kiểm tra toàn pool (HTTP/2)...', 'info');
+      U.showToast('Đã khởi chạy kiểm tra toàn pool OAuth (HTTP/2)...', 'info');
       startPollingProgress();
     } else if (data && data.throttled) {
       U.showToast(data.message || 'Vui lòng chờ giây lát', 'warn');
@@ -1074,7 +946,7 @@
   async function reloadProxyCache() {
     const { ok, data } = await U.apiFetch('/api/proxy/reload', { method: 'POST' });
     if (ok && data && data.success) {
-      U.showToast(`Đã tải lại ${data.cached_accounts} token vào RAM Proxy (<0.05ms)`, 'success');
+      U.showToast(`Đã tải lại ${data.cached_accounts} token OAuth vào RAM Proxy (<0.05ms)`, 'success');
       loadProxyTelemetry();
     }
   }
@@ -1083,11 +955,9 @@
     const badge = document.getElementById('gateway-ping-badge');
     if (badge) badge.textContent = 'Pinging...';
     const { ok, data } = await U.apiFetch('/api/cursor/network-test');
-    if (ok && data) {
-      if (badge) {
-        badge.textContent = data.upstream_ok ? `api2.cursor.sh · ${data.latency_ms}ms` : `Offline (${data.error || 'err'})`;
-        badge.className = data.upstream_ok ? 'pill pill-emerald' : 'pill pill-rose';
-      }
+    if (ok && data && badge) {
+      badge.textContent = data.upstream_ok ? `api2.cursor.sh · ${data.latency_ms}ms` : `Offline (${data.error || 'err'})`;
+      badge.className = data.upstream_ok ? 'pill pill-emerald' : 'pill pill-rose';
     }
   }
 
@@ -1104,9 +974,9 @@
         if (txt) txt.textContent = 'SSE Live';
       });
       const onDelta = async () => {
-        await Promise.allSettled([global.loadActiveStatus(), loadAccounts(), loadCookiesInfo()]);
+        await Promise.allSettled([global.loadActiveStatus(), loadAccounts(), loadPoolSummary()]);
       };
-      ['state_changed', 'cookies_scanned', 'account_refreshed', 'account_switched', 'account_captured', 'accounts_deleted', 'account_deleted', 'startup_sync_done', 'batch_check_done', 'proxy_exhausted'].forEach(ev => {
+      ['state_changed', 'account_refreshed', 'account_switched', 'account_captured', 'accounts_deleted', 'account_deleted', 'startup_sync_done', 'batch_check_done', 'proxy_exhausted'].forEach(ev => {
         es.addEventListener(ev, onDelta);
       });
       es.addEventListener('keyboard_alert', () => {
@@ -1139,27 +1009,17 @@
     if (el) U.copyToClipboard(el.textContent.trim(), 'Đã sao chép email active');
   }
 
-  /* Export globally for inline triggers & bootstrap */
   Object.assign(global, {
     navigateSection,
-    toggleWorkbench,
-    switchIngestTab,
-    onPasteInputChanged,
-    submitPastedCookies,
+    toggleOAuthHub,
+    toggleTokenRestoreDrawer,
     startInteractiveOAuthLogin,
     copyOAuthLoginUrl,
     cancelInteractiveOAuthLogin,
     captureActiveCursorAccount,
-    openCookieFolder,
-    copyCookieFolderPath,
-    loadCookiesInfo,
-    quarantineCorruptedCookies,
-    convertCookiesToTokens,
-    handleCookieDragOver,
-    handleCookieDragLeave,
-    handleCookieDrop,
-    handleCookieFileSelect,
-    uploadCookieFiles,
+    submitOAuthTokenRestore,
+    loadPoolSummary,
+    syncAllOAuthSessions,
     loadAccounts,
     renderAccounts,
     updateStats,

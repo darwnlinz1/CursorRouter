@@ -97,11 +97,9 @@ def test_apply_fingerprint(temp_workspace):
 
 
 def test_account_pool_fingerprint_persistence(temp_workspace, monkeypatch):
-    cookies_dir = os.path.join(temp_workspace["root"], "Cookies")
-    os.makedirs(cookies_dir, exist_ok=True)
     monkeypatch.setattr("account_pool.DB_FILE", temp_workspace["db_path"])
 
-    pool = AccountPoolManager(cookies_dir=cookies_dir)
+    pool = AccountPoolManager()
 
     con = sqlite3.connect(temp_workspace["db_path"])
     cur = con.cursor()
@@ -133,8 +131,6 @@ def test_account_pool_fingerprint_persistence(temp_workspace, monkeypatch):
 
 
 def test_server_antidetect_endpoints(temp_workspace, monkeypatch):
-    cookies_dir = os.path.join(temp_workspace["root"], "Cookies")
-    os.makedirs(cookies_dir, exist_ok=True)
     monkeypatch.setattr("account_pool.DB_FILE", temp_workspace["db_path"])
     monkeypatch.setattr("server.DB_FILE", temp_workspace["db_path"])
 
@@ -146,7 +142,7 @@ def test_server_antidetect_endpoints(temp_workspace, monkeypatch):
     csm.auto_switch_config_path = temp_workspace["config_path"]
     monkeypatch.setattr(server, "settings_manager", csm)
 
-    pool = AccountPoolManager(cookies_dir=cookies_dir)
+    pool = AccountPoolManager()
     monkeypatch.setattr(server, "pool", pool)
 
     con = sqlite3.connect(temp_workspace["db_path"])

@@ -122,7 +122,7 @@ def build_desktop_app(onefile: bool = True, windowed: bool = False) -> bool:
             'min_version': '2.0.0',
             'changelog': (
                 '1. Async HTTP/2 Multiplexed Sync Engine (~20x faster quota & profile ingestion).\n'
-                '2. Dual-Path CSRF-Aware PKCE + Instant Session JWT Extraction + Multi-Format Cookie Parser (Netscape/JSON/Header/Batch Paste).\n'
+                '2. Pure Official OAuth 2.0 PKCE + Native Windows DPAPI cursor-safe-storage:v1 Support.\n'
                 '3. LRU Token Decrypt Cache (>100,000x faster dashboard reads) + Blind Index SQLite lookups + Portable --onefile data persistence.\n'
                 '4. Offline-first Modular CursorRouter v3.0 Cockpit UI with Sidebar Rail, Quick Paste Workbench, Card/Table Toggle, Email Masking, and Live Proxy Telemetry.\n'
                 '5. String-aware JSONC settings protection, unified Anti-Detect enforcement, and SSE real-time push.'

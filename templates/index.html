@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CursorRouter v3.0 — Cursor Manager</title>
+  <title>CursorRouter v3.1 — Cursor Manager (OAuth PKCE)</title>
   <link rel="stylesheet" href="/static/css/tokens.css">
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
@@ -21,8 +21,8 @@
             </svg>
           </div>
           <div class="brand-title-wrap">
-            <div class="brand-name">CursorRouter <span class="brand-ver">v3.0</span></div>
-            <div class="brand-sub">Cursor Manager · H2 Engine</div>
+            <div class="brand-name">CursorRouter <span class="brand-ver">v3.1</span></div>
+            <div class="brand-sub">Cursor Manager · OAuth PKCE</div>
           </div>
         </div>
 
@@ -34,10 +34,10 @@
               <span>Cockpit</span>
             </span>
           </button>
-          <button class="rail-btn rail-nav-btn" data-nav="sec-cookies" onclick="navigateSection('sec-cookies')">
+          <button class="rail-btn rail-nav-btn" data-nav="sec-oauth" onclick="navigateSection('sec-oauth')">
             <span class="rail-btn-left">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/></svg>
-              <span>Nạp Cookie</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Thêm Acc (OAuth)</span>
             </span>
           </button>
           <button class="rail-btn rail-nav-btn" data-nav="sec-pool" onclick="navigateSection('sec-pool')">
@@ -137,9 +137,9 @@
           </span>
         </div>
         <div class="topbar-actions">
-          <button class="btn btn-xs" onclick="unstickKeys()" title="Giải phóng phím kẹt (Ctrl+Alt+U)">Unstick Keys</button>
+          <button class="btn btn-xs btn-emerald" onclick="startInteractiveOAuthLogin(true)" title="Đăng nhập thêm tài khoản bằng Cursor OAuth PKCE chính thức">+ OAuth Login</button>
           <button class="btn btn-xs" onclick="launchCursorApp()" title="Khởi chạy Cursor IDE">Mở Cursor</button>
-          <button class="btn btn-primary" onclick="autoSwitchBest()" title="Tự động chuyển sang tài khoản tốt nhất (Ctrl+Alt+S)">
+          <button class="btn btn-primary" onclick="autoSwitchBest()" title="Tự động chuyển sang tài khoản OAuth tốt nhất (Ctrl+Alt+S)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             <span>Đổi Acc Tốt Nhất</span>
           </button>
@@ -214,7 +214,7 @@
                   </button>
                 </div>
                 <div class="action-trio">
-                  <button class="btn btn-xs" onclick="forceRotateAccount()" title="Xoay tua sang tài khoản tiếp theo">Xoay Tua</button>
+                  <button class="btn btn-xs" onclick="forceRotateAccount()" title="Xoay tua sang tài khoản OAuth tiếp theo">Xoay Tua</button>
                   <button class="btn btn-xs" onclick="reloadCursorWindow()" title="Gửi lệnh Reload Window tới Cursor">Reload</button>
                   <button class="btn btn-xs btn-amber" onclick="hardRestartCursorApp()" title="Đóng và khởi động lại Cursor IDE">Hard Reset</button>
                 </div>
@@ -273,7 +273,7 @@
               <span class="kpi-unit">acc</span>
               <span class="kpi-tag text-muted">Pending: <span id="stat-pending">0</span></span>
             </div>
-            <p class="kpi-desc">Toàn bộ pool đã lưu và mã hóa AES/PBKDF2</p>
+            <p class="kpi-desc">Phiên OAuth mã hóa PBKDF2 + DPAPI safeStorage</p>
           </div>
 
           <div class="card card-hover kpi-card" data-filter="TIER1" onclick="setStatusFilter('TIER1')">
@@ -315,46 +315,37 @@
               <p id="stat-high" class="kpi-number text-rose">0</p>
               <span class="kpi-unit">≥ 100%</span>
             </div>
-            <p class="kpi-desc">Tạm cách ly 24h hoặc chờ dọn dẹp pool</p>
+            <p class="kpi-desc">Tạm cách ly tự động hoặc chờ dọn dẹp pool</p>
           </div>
         </section>
 
-        <!-- ================= 3. INSTANT COOKIE INGESTION WORKBENCH ================= -->
-        <section id="sec-cookies" class="card workbench-card">
+        <!-- ================= 3. OAUTH ACCOUNT ONBOARDING HUB ================= -->
+        <section id="sec-oauth" class="card workbench-card">
           <div class="workbench-header">
             <div class="workbench-title-group">
-              <button class="btn btn-icon btn-ghost" onclick="toggleWorkbench()" title="Thu gọn / Mở rộng khung nạp cookie">
-                <svg id="workbench-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.15s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+              <button class="btn btn-icon btn-ghost" onclick="toggleOAuthHub()" title="Thu gọn / Mở rộng khung OAuth Onboarding">
+                <svg id="oauth-hub-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.15s ease;"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
               <div>
-                <h2 class="workbench-title">Instant Cookie Ingestion Workbench</h2>
+                <h2 class="workbench-title">Cursor OAuth 2.0 PKCE Onboarding Hub</h2>
                 <div class="workbench-meta">
-                  <span id="cookie-folder-path" class="pill pill-clickable" onclick="copyCookieFolderPath()" title="Click để sao chép đường dẫn">Cookies/</span>
-                  <span>Files: <strong id="cookie-files-count" style="color:var(--text-primary);">0</strong></span>
-                  <span>Pool: <strong id="cookie-total-accounts" style="color:var(--text-primary);">0</strong></span>
-                  <span>Tokens: <strong id="cookie-valid-tokens" class="text-emerald">0</strong></span>
-                  <span id="cookie-tier1-count" class="pill pill-emerald">0 T1</span>
-                  <span id="cookie-tier2-count" class="pill pill-amber">0 T2</span>
-                  <span id="cookie-exhausted-count" class="pill pill-rose">0 Cạn</span>
-                  <span id="cookie-archived-container" class="hidden">Lưu trữ: <strong id="cookie-archived-count">0</strong></span>
+                  <span class="pill pill-emerald">Pure OAuth PKCE · 60-Day IDE Sessions</span>
+                  <span>Pool: <strong id="oauth-total-accounts" style="color:var(--text-primary);">0</strong></span>
+                  <span>IDE Sessions: <strong id="oauth-valid-sessions" class="text-emerald">0</strong></span>
+                  <span id="oauth-tier1-count" class="pill pill-emerald">0 T1</span>
+                  <span id="oauth-tier2-count" class="pill pill-amber">0 T2</span>
+                  <span id="oauth-exhausted-count" class="pill pill-rose">0 Cạn</span>
                 </div>
               </div>
             </div>
             <div class="workbench-actions">
-              <div class="sub-tabs">
-                <button id="ingest-tab-paste" class="sub-tab-btn active" onclick="switchIngestTab('paste')">Quick Paste</button>
-                <button id="ingest-tab-drop" class="sub-tab-btn" onclick="switchIngestTab('drop')">Drop / Folder</button>
-              </div>
-              <button id="btn-oauth-add" class="btn btn-xs btn-primary" onclick="startInteractiveOAuthLogin(true)" title="Mở trang đăng nhập Cursor OAuth PKCE chính thức — tự động lấy Desktop IDE Session Token 60 ngày chuẩn 100%">+ Đăng Nhập Thêm Acc (OAuth)</button>
-              <button id="btn-capture-cursor" class="btn btn-xs btn-emerald" onclick="captureActiveCursorAccount()" title="Chụp & giải mã phiên đang đăng nhập trực tiếp từ Cursor IDE (lấy Desktop Session Token chuẩn)">Lưu Acc Từ Cursor</button>
-              <button id="btn-open-cookie-folder" class="btn btn-xs" onclick="openCookieFolder()">Mở Thư Mục</button>
-              <button id="btn-quarantine-cookies" class="btn btn-xs btn-amber" onclick="quarantineCorruptedCookies()">Cách Ly Hỏng</button>
-              <button id="btn-convert-cookies" class="btn btn-xs" onclick="convertCookiesToTokens()">Quét &amp; Đồng Bộ H2</button>
+              <button class="btn btn-xs btn-ghost" onclick="toggleTokenRestoreDrawer()" title="Khôi phục OAuth Session Token từ bản sao lưu">Khôi Phục Token</button>
+              <button id="btn-sync-oauth-pool" class="btn btn-xs" onclick="syncAllOAuthSessions()">Đồng Bộ HTTP/2</button>
             </div>
           </div>
 
-          <div id="cookie-workbench-body" class="workbench-body">
-            <!-- Interactive Official OAuth PKCE Banner -->
+          <div id="oauth-hub-body" class="workbench-body">
+            <!-- Active Interactive OAuth PKCE Waiting Banner -->
             <div id="oauth-pkce-banner" class="hidden" style="background:rgba(16,185,129,0.08);border:1px solid var(--emerald-border);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -370,58 +361,80 @@
               <div id="oauth-pkce-status" class="mono" style="font-size:11px;color:var(--emerald-text);">Đang chờ xác nhận...</div>
             </div>
 
-            <div style="background:#101012;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:9px 12px;font-size:11.5px;color:var(--text-secondary);">
-              <strong style="color:#fff;">Lưu ý Cursor 2026:</strong> Cookie web xuất cũ bị Cursor chặn đổi sang phiên IDE (<code class="mono">FRESH_SIGN_IN_REQUIRED</code> — chỉ đọc được quota, dán vào IDE sẽ báo <em>Authentication error</em>). Để xoay tua mượt 60 ngày, hãy dùng <strong class="text-emerald">+ Đăng Nhập Thêm Acc (OAuth)</strong> (copy link mở ở tab Ẩn danh cho từng tài khoản) hoặc <strong class="text-emerald">Lưu Acc Từ Cursor</strong>.
-            </div>
-
-            <!-- Tab 1: Quick Paste -->
-            <div id="ingest-pane-paste" class="paste-box-wrap">
-              <textarea
-                id="cookie-paste-input"
-                class="paste-textarea"
-                placeholder="Dán trực tiếp Cookie từ clipboard (tự động nhận diện):&#10;• Netscape TSV (.txt xuất từ trình duyệt)&#10;• JSON Cookie array (EditThisCookie / Cookie-Editor)&#10;• Header string: WorkosCursorSessionToken=user_01...%3A%3AeyJ...&#10;• Batch nhiều dòng: email@domain.com|user_01... hoặc raw JWT"
-                oninput="onPasteInputChanged()"
-              ></textarea>
-              <div class="paste-side">
+            <!-- 3-Column OAuth Onboarding Cards -->
+            <div class="oauth-action-grid">
+              <div class="oauth-action-card featured">
                 <div>
-                  <div style="font-size:12px;font-weight:600;color:#fff;margin-bottom:6px;">Nhận Diện Định Dạng Tự Động</div>
-                  <span id="paste-detect-badge" class="pill">Sẵn sàng dán (Raw / Netscape / JSON)</span>
-                  <p style="font-size:11px;color:var(--text-muted);margin:8px 0 0;line-height:1.45;">
-                    Trích xuất trực tiếp Session JWT không tốn vòng PKCE thừa, sau đó kiểm tra quota song song qua HTTP/2 Multiplexing (~0.37s warm).
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:13px;color:#fff;">1. Đăng Nhập OAuth PKCE</strong>
+                    <span class="pill pill-emerald">Khuyên dùng</span>
+                  </div>
+                  <p style="margin:0;font-size:11.5px;color:var(--text-secondary);line-height:1.5;">
+                    Mở trang đăng nhập chính thức <code>cursor.com/loginDeepControl</code> để nhận trực tiếp Desktop IDE Session 60 ngày mà không cần đăng xuất Cursor. Bấm <strong>Copy Link</strong> mở cửa sổ Ẩn danh để thêm nhiều tài khoản.
                   </p>
                 </div>
-                <button id="btn-submit-paste" class="btn btn-primary" disabled onclick="submitPastedCookies()">
-                  Nạp &amp; Check Ngay (HTTP/2)
-                </button>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button id="btn-oauth-add" class="btn btn-primary" onclick="startInteractiveOAuthLogin(true)">+ Đăng Nhập Thêm Acc (OAuth)</button>
+                  <button class="btn btn-xs" onclick="startInteractiveOAuthLogin(false)" title="Tạo link OAuth không tự mở trình duyệt, để dán vào tab Ẩn danh">Chỉ Tạo Link</button>
+                </div>
+              </div>
+
+              <div class="oauth-action-card">
+                <div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:13px;color:#fff;">2. Lưu Acc Từ Cursor IDE</strong>
+                    <span class="pill">DPAPI safeStorage</span>
+                  </div>
+                  <p style="margin:0;font-size:11.5px;color:var(--text-secondary);line-height:1.5;">
+                    Tự động đọc &amp; giải mã phiên OAuth đang đăng nhập trong <code>state.vscdb</code> (hỗ trợ <code>cursor-safe-storage:v1:</code> AES-256-GCM trên Windows) và đưa ngay vào pool xoay tua.
+                  </p>
+                </div>
+                <div>
+                  <button id="btn-capture-cursor" class="btn btn-emerald" onclick="captureActiveCursorAccount()">Lưu Acc Từ Cursor</button>
+                </div>
+              </div>
+
+              <div class="oauth-action-card">
+                <div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <strong style="font-size:13px;color:#fff;">3. Đồng Bộ Quota HTTP/2</strong>
+                    <span class="pill">~370ms Warm</span>
+                  </div>
+                  <p style="margin:0;font-size:11.5px;color:var(--text-secondary);line-height:1.5;">
+                    Cập nhật song song quota, chi tiêu và trạng thái toàn bộ phiên OAuth qua kênh HTTP/2 Multiplexing bền vững + SQLite WAL gộp một giao dịch.
+                  </p>
+                </div>
+                <div>
+                  <button class="btn" onclick="syncAllOAuthSessions()">Đồng Bộ Toàn Pool (HTTP/2)</button>
+                </div>
               </div>
             </div>
 
-            <!-- Tab 2: Drag & Drop / File Upload -->
-            <div id="ingest-pane-drop" class="hidden">
-              <div
-                id="cookie-drop-area"
-                class="dropzone"
-                onclick="document.getElementById('cookie-file-input').click()"
-                ondragover="handleCookieDragOver(event)"
-                ondragleave="handleCookieDragLeave(event)"
-                ondrop="handleCookieDrop(event)"
-              >
-                <input id="cookie-file-input" type="file" multiple accept=".txt,.json,.cookie" class="hidden" onchange="handleCookieFileSelect(event)">
-                <div style="font-size:13px;font-weight:600;color:#fff;">Kéo &amp; Thả file Cookie (.txt / .json / .cookie) vào đây</div>
-                <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">Hoặc nhấn để chọn nhiều file cùng lúc — tự động giải mã &amp; đồng bộ hóa vào SQLite WAL</div>
+            <!-- Collapsible Cross-Machine OAuth Token Restore Drawer -->
+            <div id="oauth-restore-drawer" class="hidden" style="background:#101012;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <strong style="font-size:12px;color:#fff;">Khôi Phục Phiên OAuth Từ Bản Sao Lưu (JWT)</strong>
+                <button class="btn btn-ghost btn-xs" onclick="toggleTokenRestoreDrawer()">✕</button>
+              </div>
+              <div class="form-grid-2">
+                <input id="oauth-restore-access" type="password" class="input-field mono" placeholder="OAuth Access Token (eyJ...)">
+                <input id="oauth-restore-refresh" type="password" class="input-field mono" placeholder="OAuth Refresh Token (tùy chọn)">
+              </div>
+              <div>
+                <button class="btn btn-xs btn-primary" onclick="submitOAuthTokenRestore()">Xác Thực &amp; Lưu Vào Pool</button>
               </div>
             </div>
 
             <!-- Live Sync Progress Bar + Stream Chips -->
-            <div id="cookie-convert-progress" class="hidden" style="background:#101012;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;">
+            <div id="oauth-sync-progress" class="hidden" style="background:#101012;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;">
               <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px;margin-bottom:7px;" class="mono">
-                <span id="cookie-convert-status" style="color:var(--text-secondary);">Đang đồng bộ HTTP/2...</span>
-                <span id="cookie-convert-ratio" class="text-emerald" style="font-weight:700;">0/0 (0%)</span>
+                <span id="oauth-sync-status" style="color:var(--text-secondary);">Đang đồng bộ HTTP/2...</span>
+                <span id="oauth-sync-ratio" class="text-emerald" style="font-weight:700;">0/0 (0%)</span>
               </div>
               <div class="progress-track">
-                <div id="cookie-convert-bar" class="progress-fill fill-emerald" style="width:0%;"></div>
+                <div id="oauth-sync-bar" class="progress-fill fill-emerald" style="width:0%;"></div>
               </div>
-              <div id="cookie-live-chips" class="live-chips"></div>
+              <div id="oauth-live-chips" class="live-chips"></div>
             </div>
           </div>
         </section>
@@ -430,14 +443,14 @@
         <section id="sec-pool" class="card">
           <div class="pool-toolbar">
             <div class="pool-toolbar-left">
-              <h2 style="margin:0;font-size:14px;font-weight:700;color:#fff;">Account Pool Explorer</h2>
+              <h2 style="margin:0;font-size:14px;font-weight:700;color:#fff;">OAuth Account Pool Explorer</h2>
               <span id="account-count-badge" class="pill">0 acc</span>
             </div>
 
             <div class="pool-toolbar-right">
               <div class="search-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input id="search-input" type="text" class="input-field" placeholder="Tìm email, file, FP..." oninput="filterAccounts()">
+                <input id="search-input" type="text" class="input-field" placeholder="Tìm email, tên, FP..." oninput="filterAccounts()">
               </div>
 
               <div class="filter-tabs" role="tablist">
@@ -476,7 +489,7 @@
                 </tr>
               </thead>
               <tbody id="accounts-tbody">
-                <tr><td colspan="7" style="text-align:center;padding:36px;color:var(--text-muted);">Đang tải danh sách tài khoản...</td></tr>
+                <tr><td colspan="7" style="text-align:center;padding:36px;color:var(--text-muted);">Đang tải danh sách tài khoản OAuth...</td></tr>
               </tbody>
             </table>
           </div>
@@ -543,8 +556,8 @@
               <div id="tele-avg-ttft" class="mini-stat-val">0ms</div>
             </div>
             <div class="mini-stat">
-              <div class="mini-stat-label">Sync Engine</div>
-              <div class="mini-stat-val" style="font-size:14px;color:var(--emerald-text);">HTTP/2 + WAL</div>
+              <div class="mini-stat-label">Auth &amp; Sync</div>
+              <div class="mini-stat-val" style="font-size:14px;color:var(--emerald-text);">OAuth + H2</div>
             </div>
           </div>
 
@@ -576,7 +589,7 @@
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
         <div>
           <div style="font-size:12.5px;font-weight:700;color:var(--amber-text);">Cursor IDE đang tắt</div>
-          <div style="font-size:11.5px;color:var(--text-secondary);margin-top:3px;">Bạn vẫn có thể quản lý pool &amp; nạp cookie bình thường, hoặc mở Cursor ngay.</div>
+          <div style="font-size:11.5px;color:var(--text-secondary);margin-top:3px;">Bạn vẫn có thể thêm tài khoản OAuth &amp; quản lý pool bình thường, hoặc mở Cursor ngay.</div>
         </div>
         <button class="btn btn-ghost btn-xs" onclick="dismissOfflineNotification()">✕</button>
       </div>
@@ -587,7 +600,7 @@
 
     <div id="startup-sync-banner" class="floating-card hidden">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px;">
-        <strong style="color:#fff;">Đồng Bộ Quota Khởi Động (HTTP/2)</strong>
+        <strong style="color:#fff;">Đồng Bộ Quota OAuth (HTTP/2)</strong>
         <span id="startup-sync-ratio" class="mono text-emerald">0/0</span>
       </div>
       <div class="progress-track">
@@ -729,7 +742,7 @@
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Dọn Dẹp Tài Khoản Pool</h3>
-          <p class="modal-subtitle">Loại bỏ tài khoản cạn quota hoặc cookie hết hạn để giữ pool luôn gọn nhẹ</p>
+          <p class="modal-subtitle">Loại bỏ tài khoản cạn quota hoặc phiên OAuth hết hạn để giữ pool gọn nhẹ</p>
         </div>
         <button class="btn btn-ghost btn-xs" onclick="closeCleanupModal()">✕</button>
       </div>
@@ -744,10 +757,10 @@
 
         <div class="setting-row">
           <div>
-            <div style="font-size:13px;font-weight:600;color:#fff;">Xóa tài khoản hỏng / Expired</div>
-            <div style="font-size:11.5px;color:var(--text-muted);">Hiện có <strong id="cleanup-invalid-count" class="text-amber">0</strong> tài khoản bị từ chối xác thực (401).</div>
+            <div style="font-size:13px;font-weight:600;color:#fff;">Xóa phiên OAuth Expired</div>
+            <div style="font-size:11.5px;color:var(--text-muted);">Hiện có <strong id="cleanup-invalid-count" class="text-amber">0</strong> phiên đã hết hạn (401).</div>
           </div>
-          <button id="btn-clean-invalid-modal" class="btn btn-amber btn-xs" onclick="cleanInvalidAccounts()">Xóa Tài Khoản Hỏng</button>
+          <button id="btn-clean-invalid-modal" class="btn btn-amber btn-xs" onclick="cleanInvalidAccounts()">Xóa Phiên Hết Hạn</button>
         </div>
       </div>
       <div class="modal-footer">
@@ -770,7 +783,7 @@
         <div class="setting-row">
           <div>
             <div style="font-size:12.5px;color:var(--text-secondary);">Phiên bản hiện tại</div>
-            <div id="updater-cur-version" class="mono" style="font-size:16px;font-weight:700;color:#fff;">v3.0.0</div>
+            <div id="updater-cur-version" class="mono" style="font-size:16px;font-weight:700;color:#fff;">v3.1.0</div>
           </div>
           <span id="updater-state-label" class="pill">IDLE</span>
         </div>
@@ -995,7 +1008,7 @@
           <!-- TAB 8: AUTO-SWITCH & RESET -->
           <div id="settings-tab-autoswitch" class="settings-tab-content hidden">
             <div class="setting-group">
-              <strong style="color:#fff;">Cấu Hình Chuyển Tài Khoản &amp; Tự Động Tiếp Tục</strong>
+              <strong style="color:#fff;">Cấu Hình Chuyển Tài Khoản &amp; Proxy Retry</strong>
               <div class="form-grid-2">
                 <label>
                   <div class="text-muted" style="font-size:11px;margin-bottom:4px;">Chế Độ Reset Cursor</div>
@@ -1015,7 +1028,7 @@
               </div>
               <div class="form-grid-2">
                 <label>
-                  <div class="text-muted" style="font-size:11px;margin-bottom:4px;">Prompt Tiếp Tục</div>
+                  <div class="text-muted" style="font-size:11px;margin-bottom:4px;">Prompt Tiếp Tục (chỉ dùng cho Legacy)</div>
                   <input id="input-continue-prompt" type="text" class="input-field" value="Tiếp tục">
                 </label>
                 <label>
@@ -1176,7 +1189,7 @@
         setTxt('active-plan-badge', String(data.membership_type || 'FREE').toUpperCase());
         setTxt('active-model-badge', 'Model: ' + (data.cursor_model || 'default'));
         setTxt('active-spend-text', window.CRUtils.formatSpend(spendCents, threshCents));
-        setTxt('active-quota-message', data.displayMessage || (data.email ? 'Hoạt động ổn định' : 'Chọn 1 acc bên dưới để nạp'));
+        setTxt('active-quota-message', data.displayMessage || (data.email ? 'Hoạt động ổn định' : 'Thêm acc bằng OAuth bên dưới'));
 
         var resetMode = (data.auto_switch_config && data.auto_switch_config.reset_mode) || 'hard_restart';
         setTxt('active-reset-mode-badge', resetMode === 'soft_reload' ? 'Soft Reload' : (resetMode === 'none' ? 'DB Only' : 'Hard Reset'));
@@ -1347,9 +1360,8 @@
         updateRealtimeClock();
         setInterval(updateRealtimeClock, 1000);
 
-        // Apply saved UI preferences
-        if (window.CRState.workbenchCollapsed) {
-          window.toggleWorkbench(true);
+        if (window.CRState.hubCollapsed) {
+          window.toggleOAuthHub(true);
         }
         var maskBtn = document.getElementById('btn-toggle-mask');
         if (maskBtn && window.CRState.globalMaskEmails) {
@@ -1359,7 +1371,7 @@
         // Single-RTT initial hydration
         await pollActiveAndRotation();
         Promise.allSettled([
-          window.loadCookiesInfo(),
+          window.loadPoolSummary(),
           window.loadProxyTelemetry(),
           window.fetchUpdateStatus(),
         ]);

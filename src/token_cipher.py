@@ -1,10 +1,10 @@
 """
 Token Cipher & Data Encryption Module
 =====================================
-Provides zero-dependency encryption and decryption for sensitive tokens,
-session cookies, and authentication payloads stored in SQLite or cached on host.
+Provides zero-dependency encryption and decryption for OAuth access tokens,
+refresh tokens, and authentication payloads stored in SQLite.
 
-Security & Performance Architecture (v3.0):
+Security & Performance Architecture (v3.1):
 - 100% backward-compatible 'enc:v1:' authenticated stream cipher (PBKDF2 + HMAC-SHA256).
 - Persistent machine-bound master key resolved via app_paths (portable --onefile safe,
   with automatic AppData mirror so moving the binary never orphans encrypted DBs).
@@ -25,7 +25,7 @@ import threading
 from collections import OrderedDict
 from typing import Optional, Iterator
 
-from app_paths import get_data_dir, get_db_path, get_cookies_dir, get_master_key_paths
+from app_paths import get_data_dir, get_db_path, get_master_key_paths
 
 logger = logging.getLogger("cursor_manager.token_cipher")
 
@@ -199,7 +199,7 @@ def compute_token_hash(token: Optional[str]) -> Optional[str]:
 
 def encrypt_token(plaintext: Optional[str]) -> Optional[str]:
     """
-    Encrypt sensitive plaintext (access token, refresh token, cookie).
+    Encrypt sensitive plaintext (OAuth access token, refresh token).
     Returns ciphertext prefixed with 'enc:v1:' or None/empty if input is empty.
     If already encrypted, returns original ciphertext unchanged.
     """
@@ -300,52 +300,82 @@ def mask_token(token: Optional[str]) -> str:
     return f"{plain[:6]}...{plain[-4:]}"
 
 
-def auto_repair_database(db_path: Optional[str] = None, cookies_dir: Optional[str] = None) -> int:
+def _decrypt_with_key(ciphertext: Optional[str], key: bytes) -> Optional[str]:
+    """Attempt to decrypt an 'enc:v1:' payload with one specific key; returns None on mismatch."""
+    if not ciphertext or not isinstance(ciphertext, str) or not ciphertext.startswith("enc:v1:"):
+        return None
+    try:
+        raw_b64 = ciphertext[7:]
+        payload = base64.urlsafe_b64decode(raw_b64.encode("ascii"))
+        if len(payload) < 8 + 12 + 16:
+            return None
+        salt = payload[:8]
+        nonce = payload[8:20]
+        expected_tag = payload[20:36]
+        cipher_bytes = payload[36:]
+
+        derived_key = hashlib.pbkdf2_hmac("sha256", key, salt, 10000, 32)
+        actual_tag = hmac.new(derived_key, nonce + cipher_bytes, hashlib.sha256).digest()[:16]
+        if not hmac.compare_digest(expected_tag, actual_tag):
+            return None
+
+        ks = _keystream(derived_key, nonce, len(cipher_bytes))
+        decrypted_bytes = bytes(a ^ b for a, b in zip(cipher_bytes, ks))
+        return decrypted_bytes.decode("utf-8")
+    except Exception:
+        return None
+
+
+def auto_repair_database(db_path: Optional[str] = None) -> int:
     """
-    Autonomous self-healing scanner: verifies all encrypted records in sqlite database,
-    and repairs any undecryptable cookies using the original files in Cookies/ folder.
+    Autonomous self-healing scanner: verifies encrypted OAuth tokens in SQLite,
+    re-encrypts records recovered via fallback key mirrors under the active master key,
+    and flags undecryptable records as EXPIRED for clean OAuth re-authentication.
     Returns the number of repaired rows.
     """
     import sqlite3
 
     if not db_path:
         db_path = get_db_path()
-    if not cookies_dir:
-        cookies_dir = get_cookies_dir()
-
-    if not os.path.exists(db_path) or not os.path.exists(cookies_dir):
+    if not os.path.exists(db_path):
         return 0
 
     repaired = 0
+    conn = None
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=10.0)
         cur = conn.cursor()
-        cur.execute("SELECT id, file_name, email, cookie_full FROM accounts WHERE cookie_full LIKE 'enc:v1:%'")
+        cur.execute("SELECT id, access_token, refresh_token FROM accounts WHERE access_token LIKE 'enc:v1:%'")
         rows = cur.fetchall()
+        primary_key = _MASTER_KEY
 
-        for acc_id, file_name, email, cookie_val in rows:
-            if decrypt_token(cookie_val) is None:
-                target_file = None
-                if file_name and os.path.exists(os.path.join(cookies_dir, file_name)):
-                    target_file = os.path.join(cookies_dir, file_name)
-                elif email and os.path.exists(os.path.join(cookies_dir, f"{email}.txt")):
-                    target_file = os.path.join(cookies_dir, f"{email}.txt")
-
-                if target_file:
-                    try:
-                        with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
-                            raw_cookie = f.read().strip()
-                        if raw_cookie:
-                            new_encrypted = encrypt_token(raw_cookie)
-                            cur.execute("UPDATE accounts SET cookie_full = ? WHERE id = ?", (new_encrypted, acc_id))
-                            repaired += 1
-                    except Exception:
-                        pass
+        for acc_id, acc_tok, ref_tok in rows:
+            plain_acc = decrypt_token(acc_tok)
+            if plain_acc is None:
+                cur.execute(
+                    "UPDATE accounts SET status = 'EXPIRED', display_message = ? WHERE id = ?",
+                    ("Khóa giải mã thay đổi — bấm + Đăng Nhập OAuth để gia hạn", acc_id),
+                )
+                repaired += 1
+            elif _decrypt_with_key(acc_tok, primary_key) is None:
+                new_acc = encrypt_token(plain_acc)
+                plain_ref = decrypt_token(ref_tok) if ref_tok else None
+                new_ref = encrypt_token(plain_ref) if plain_ref else ref_tok
+                cur.execute(
+                    "UPDATE accounts SET access_token = ?, refresh_token = ? WHERE id = ?",
+                    (new_acc, new_ref, acc_id),
+                )
+                repaired += 1
 
         if repaired > 0:
             conn.commit()
-        conn.close()
     except Exception as e:
         logger.debug(f"auto_repair_database exception: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     return repaired

@@ -21,11 +21,11 @@ class TestCursorManagerCli(unittest.TestCase):
         res = subprocess.run([sys.executable, script_path, "-h"], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
         self.assertIn("--status", res.stdout)
+        self.assertIn("--oauth-login", res.stdout)
+        self.assertIn("--capture", res.stdout)
         self.assertIn("--sync-profile", res.stdout)
         self.assertIn("--serve", res.stdout)
-        self.assertIn("--scan", res.stdout)
         self.assertIn("--auto-switch", res.stdout)
-        self.assertIn("--test-cookie", res.stdout)
         self.assertIn("--inject-only", res.stdout)
         self.assertIn("--clean-exhausted", res.stdout)
 
@@ -73,18 +73,21 @@ class TestCursorManagerCli(unittest.TestCase):
 
     @patch("cursor_manager.CursorStorageManager")
     @patch("cursor_manager.AccountPoolManager")
-    def test_04_cli_scan_action(self, mock_pool_cls, mock_storage_cls):
-        """--scan invokes pool.scan_cookies_folder."""
+    def test_04_cli_capture_action(self, mock_pool_cls, mock_storage_cls):
+        """--capture invokes pool.capture_active_cursor_session."""
         mock_pool = MagicMock()
         mock_pool_cls.return_value = mock_pool
-        mock_pool.scan_cookies_folder.return_value = 5
+        mock_pool.capture_active_cursor_session.return_value = {
+            "success": True,
+            "message": "Da luu phien Cursor IDE active@example.com vao pool",
+        }
 
-        with patch.object(sys, "argv", ["cursor_manager.py", "--scan"]):
+        with patch.object(sys, "argv", ["cursor_manager.py", "--capture"]):
             with patch("builtins.print") as mock_print:
                 cursor_manager.main()
-                mock_pool.scan_cookies_folder.assert_called_once()
+                mock_pool.capture_active_cursor_session.assert_called_once()
                 printed = " ".join([call.args[0] for call in mock_print.call_args_list if call.args])
-                self.assertIn("Them moi 5 tai khoan", printed)
+                self.assertIn("active@example.com", printed)
 
     @patch("cursor_manager.CursorStorageManager")
     @patch("cursor_manager.AccountPoolManager")
@@ -132,27 +135,49 @@ class TestCursorManagerCli(unittest.TestCase):
                 cursor_manager.main()
                 mock_pool.delete_exhausted_accounts.assert_called_once()
                 printed = " ".join([call.args[0] for call in mock_print.call_args_list if call.args])
-                self.assertIn("3 tai khoan", printed)
+                self.assertIn("3 phien tai khoan", printed)
 
-    @patch("cursor_manager.CursorAuthClient")
+    @patch("cursor_manager.webbrowser.open")
+    @patch("cursor_manager.CursorOAuthPKCEClient")
     @patch("cursor_manager.CursorStorageManager")
     @patch("cursor_manager.AccountPoolManager")
-    def test_08_cli_test_cookie_action(self, mock_pool_cls, mock_storage_cls, mock_auth_cls):
-        """--test-cookie attempts exchange and declines injection upon prompt."""
-        mock_client = MagicMock()
-        mock_auth_cls.return_value = mock_client
-        mock_client.exchange_cookie_to_tokens.return_value = {
-            "accessToken": "ey_access_token_1234567890",
-            "refreshToken": "refresh_token_12345"
+    def test_08_cli_oauth_login_action(self, mock_pool_cls, mock_storage_cls, mock_pkce_cls, mock_browser_open):
+        """--oauth-login runs interactive PKCE flow and stores resulting OAuth session."""
+        mock_pool = MagicMock()
+        mock_pool_cls.return_value = mock_pool
+        mock_pool.upsert_session_account.return_value = {
+            "success": True,
+            "email": "oauth_user@example.com",
+            "status": "READY",
+            "usage_percent": 0.0,
         }
 
-        with patch.object(sys, "argv", ["cursor_manager.py", "--test-cookie", "test_cookie_string"]):
-            with patch("builtins.input", return_value="n"):
-                with patch("builtins.print") as mock_print:
-                    cursor_manager.main()
-                    mock_client.exchange_cookie_to_tokens.assert_called_once_with("test_cookie_string")
-                    printed = " ".join([call.args[0] for call in mock_print.call_args_list if call.args])
-                    self.assertIn("DOI TOKEN THANH CONG", printed)
+        mock_client = MagicMock()
+        mock_pkce_cls.return_value = mock_client
+        mock_client.create_login_session.return_value = {
+            "uuid": "test-uuid-123",
+            "verifier": "test-verifier",
+            "challenge": "test-challenge",
+            "login_url": "https://www.cursor.com/loginDeepControl?challenge=test-challenge&uuid=test-uuid-123&mode=login",
+        }
+        mock_client.poll_until_complete.return_value = {
+            "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoic2Vzc2lvbiJ9.sig",
+            "refreshToken": "refresh_oauth_123",
+        }
+
+        with patch.object(sys, "argv", ["cursor_manager.py", "--oauth-login"]):
+            with patch("builtins.print") as mock_print:
+                cursor_manager.main()
+                mock_client.create_login_session.assert_called_once()
+                mock_browser_open.assert_called_once()
+                mock_client.poll_until_complete.assert_called_once()
+                mock_pool.upsert_session_account.assert_called_once_with(
+                    access_token="eyJhbGciOiJIUzI1NiJ9.eyJ0eXBlIjoic2Vzc2lvbiJ9.sig",
+                    refresh_token="refresh_oauth_123",
+                    source="oauth_pkce",
+                )
+                printed = " ".join([call.args[0] for call in mock_print.call_args_list if call.args])
+                self.assertIn("oauth_user@example.com", printed)
 
 
 class TestWindowsNotifierExtended(unittest.TestCase):

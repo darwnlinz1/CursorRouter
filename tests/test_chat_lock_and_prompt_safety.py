@@ -96,8 +96,6 @@ class TestChatLockoutRules(unittest.TestCase):
 class TestAccountSwitchingSelection(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
-        self.test_cookies = os.path.join(self.test_dir, "Cookies")
-        os.makedirs(self.test_cookies, exist_ok=True)
         self.test_db = os.path.join(self.test_dir, "cursor_accounts.db")
 
         import account_pool
@@ -105,7 +103,7 @@ class TestAccountSwitchingSelection(unittest.TestCase):
         account_pool.DB_FILE = self.test_db
 
         # Initialize schema properly via AccountPoolManager
-        self.mgr = AccountPoolManager(cookies_dir=self.test_cookies)
+        self.mgr = AccountPoolManager()
 
     def tearDown(self):
         import account_pool

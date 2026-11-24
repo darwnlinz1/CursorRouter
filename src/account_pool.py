@@ -3,18 +3,13 @@ import sqlite3
 import time
 import json
 from typing import List, Dict, Any, Optional, Callable
-from pkce_auth import (
-    CursorAuthClient,
-    parse_cookie_from_file,
-    parse_cookies_batch,
-    extract_jwt_from_session_cookie,
-)
+from pkce_auth import CursorOAuthPKCEClient
 from cursor_storage import CursorStorageManager, decode_jwt_payload
 from chat_lock_detector import is_chat_locked
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import requests
-from app_paths import get_data_dir, get_db_path, get_cookies_dir
+from app_paths import get_data_dir, get_db_path
 from token_cipher import (
     encrypt_token,
     decrypt_token,
@@ -40,19 +35,17 @@ class AccountPoolManager:
     TIER2_THRESHOLD = 100.0
     BLACKLIST_COOLDOWN_SECONDS = 7 * 86400  # 7-Day Blacklist Cooldown (604,800s)
 
-    def __init__(self, cookies_dir: str = "Cookies"):
-        self.cookies_dir = get_cookies_dir(cookies_dir)
-        os.makedirs(self.cookies_dir, exist_ok=True)
+    def __init__(self):
         self.storage = CursorStorageManager()
-        self.auth_client = CursorAuthClient()
+        self.auth_client = CursorOAuthPKCEClient()
         self.manual_active_account_id: Optional[int] = None
         self.last_manual_switch_time: float = 0.0
         self.state_version: int = 1
         self._change_listeners: List[Callable[[str, Dict[str, Any]], None]] = []
         self._listeners_lock = threading.Lock()
         self._init_db()
-        # Autonomous self-healing for encrypted records using Cookies directory
-        auto_repair_database(DB_FILE, self.cookies_dir)
+        # Autonomous self-healing for encrypted OAuth tokens using master key mirrors
+        auto_repair_database(DB_FILE)
 
     def add_change_listener(self, listener: Callable[[str, Dict[str, Any]], None]) -> None:
         with self._listeners_lock:
@@ -196,34 +189,6 @@ class AccountPoolManager:
             con.commit()
         finally:
             con.close()
-
-    def _heal_cookie_from_disk(self, acc_id: Optional[int], file_name: Optional[str], email: Optional[str]) -> Optional[str]:
-        """Tự động khôi phục và re-encrypt cookie từ file gốc trong thư mục Cookies nếu giải mã gặp lỗi."""
-        target_path = None
-        if file_name and os.path.exists(os.path.join(self.cookies_dir, file_name)):
-            target_path = os.path.join(self.cookies_dir, file_name)
-        elif email and os.path.exists(os.path.join(self.cookies_dir, f"{email}.txt")):
-            target_path = os.path.join(self.cookies_dir, f"{email}.txt")
-
-        if target_path:
-            try:
-                with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
-                    raw_cookie = f.read().strip()
-                if raw_cookie:
-                    new_enc = encrypt_token(raw_cookie)
-                    if acc_id:
-                        with DB_LOCK:
-                            con = sqlite3.connect(DB_FILE, timeout=30.0)
-                            try:
-                                cur = con.cursor()
-                                cur.execute("UPDATE accounts SET cookie_full = ? WHERE id = ?", (new_enc, acc_id))
-                                con.commit()
-                            finally:
-                                con.close()
-                    return raw_cookie
-            except Exception:
-                pass
-        return None
 
     def record_quota_snapshot(
         self,
@@ -482,77 +447,6 @@ class AccountPoolManager:
         except Exception as e:
             return {"error": str(e), "should_proactively_swap": False, "is_critical": False}
 
-    def scan_cookies_folder(self) -> int:
-        """Quet thu muc Cookies va them cac file moi vao pool."""
-        os.makedirs(self.cookies_dir, exist_ok=True)
-        if not os.path.exists(self.cookies_dir):
-            return 0
-
-        with DB_LOCK:
-            con = sqlite3.connect(DB_FILE, timeout=30.0)
-            try:
-                cur = con.cursor()
-                added_count = 0
-                for f in os.listdir(self.cookies_dir):
-                    f_lower = f.lower()
-                    if f_lower == "archive_corrupted" or f.startswith("."):
-                        continue
-                    if f_lower.endswith(".txt") or f_lower.endswith(".cookie") or f_lower.endswith(".json"):
-                        file_path = os.path.join(self.cookies_dir, f)
-                        if not os.path.isfile(file_path):
-                            continue
-                        
-                        if f_lower.endswith(".txt"):
-                            base_name = f[:-4]
-                        elif f_lower.endswith(".cookie"):
-                            base_name = f[:-7]
-                        elif f_lower.endswith(".json"):
-                            base_name = f[:-5]
-                        else:
-                            base_name = f
-                        tentative_email = base_name if "@" in base_name else None
-
-                        # Kiem tra xem da co trong DB chua (theo file_name hoac email khong phan biet chu hoa/thuong)
-                        cur.execute("SELECT id, access_token, status, email FROM accounts WHERE file_name = ? COLLATE NOCASE", (f,))
-                        row = cur.fetchone()
-                        if not row and tentative_email:
-                            cur.execute("SELECT id, access_token, status, email FROM accounts WHERE LOWER(email) = LOWER(?)", (tentative_email,))
-                            row = cur.fetchone()
-
-                        if not row:
-                            try:
-                                cookie_val = parse_cookie_from_file(file_path)
-                                if cookie_val:
-                                    snippet = cookie_val[:20] + "..." if len(cookie_val) > 20 else cookie_val
-                                    cur.execute("""
-                                        INSERT INTO accounts (file_name, email, cookie_snippet, cookie_full, status)
-                                        VALUES (?, ?, ?, ?, 'PENDING')
-                                    """, (f, tentative_email, snippet, encrypt_token(cookie_val)))
-                                    added_count += 1
-                            except Exception as e:
-                                print(f"[-] Loi doc file {f}: {e}")
-                        else:
-                            # Neu account da ton tai nhung chua co access_token hoac bi expired/exhausted, cap nhat lai cookie tu file
-                            acc_id, acc_token, acc_status = row[0], row[1], row[2]
-                            if not acc_token or acc_status in ("PENDING", "EXPIRED", "EXHAUSTED"):
-                                try:
-                                    cookie_val = parse_cookie_from_file(file_path)
-                                    if cookie_val:
-                                        snippet = cookie_val[:20] + "..." if len(cookie_val) > 20 else cookie_val
-                                        cur.execute("""
-                                            UPDATE accounts
-                                            SET file_name = ?, cookie_full = ?, cookie_snippet = ?, status = 'PENDING'
-                                            WHERE id = ?
-                                        """, (f, encrypt_token(cookie_val), snippet, acc_id))
-                                except Exception as e:
-                                    print(f"[-] Loi cap nhat cookie {f}: {e}")
-
-                con.commit()
-            finally:
-                con.close()
-        self._notify_change("cookies_scanned", {"added": added_count})
-        return added_count
-
     def upsert_session_account(
         self,
         access_token: str,
@@ -702,50 +596,6 @@ class AccountPoolManager:
             source="cursor_session",
         )
 
-    def import_pasted_cookies(self, raw_text: str) -> Dict[str, Any]:
-        """
-        Parse and persist one or more pasted cookies (raw, header, Netscape TSV,
-        Cookie-Editor JSON, or multi-line batch) into Cookies/ and SQLite pool.
-        """
-        parsed_items = parse_cookies_batch(raw_text)
-        if not parsed_items:
-            return {"success": False, "saved": 0, "added": 0, "formats": [], "error": "Không tìm thấy WorkosCursorSessionToken hợp lệ trong dữ liệu dán."}
-
-        os.makedirs(self.cookies_dir, exist_ok=True)
-        saved_files = []
-        formats_seen = set()
-        ts = int(time.time())
-
-        for idx, item in enumerate(parsed_items, start=1):
-            cookie_val = item["cookie"]
-            email_hint = item.get("email_hint")
-            fmt = item.get("format") or "raw"
-            formats_seen.add(fmt)
-
-            if email_hint:
-                safe_base = "".join(ch if (ch.isalnum() or ch in "._-@") else "_" for ch in email_hint).strip("._")
-                fname = f"{safe_base}.txt"
-            else:
-                # Derive deterministic short suffix from cookie so re-pasting updates the same file cleanly
-                import hashlib
-                short_h = hashlib.sha256(cookie_val.encode("utf-8")).hexdigest()[:10]
-                fname = f"pasted_{short_h}.txt"
-
-            target_path = os.path.join(self.cookies_dir, fname)
-            with open(target_path, "w", encoding="utf-8") as f:
-                f.write(f"WorkosCursorSessionToken={cookie_val}\n")
-            saved_files.append(fname)
-
-        added = self.scan_cookies_folder()
-        return {
-            "success": True,
-            "parsed": len(parsed_items),
-            "saved": len(saved_files),
-            "added": added,
-            "files": saved_files,
-            "formats": sorted(formats_seen),
-        }
-
     def get_stats_summary(self) -> Dict[str, Any]:
         """Fast SQL aggregate stats (zero token decryption overhead)."""
         now_ts = int(time.time())
@@ -836,18 +686,14 @@ class AccountPoolManager:
                     d["access_token"] = decrypt_token(raw_tok)
                 if d.get("refresh_token"):
                     d["refresh_token"] = decrypt_token(d["refresh_token"])
-                if d.get("cookie_full"):
-                    dec_c = decrypt_token(d["cookie_full"])
-                    if dec_c is None and str(d["cookie_full"]).startswith("enc:v1:"):
-                        dec_c = self._heal_cookie_from_disk(d.get("id"), d.get("file_name"), d.get("email"))
-                    d["cookie_full"] = dec_c
                 tok = d.get("access_token")
                 d["masked_token"] = d.get("token_mask") or mask_token(tok)
             else:
                 d["masked_token"] = d.get("token_mask") or (mask_token(raw_tok) if raw_tok else "None")
                 d.pop("access_token", None)
                 d.pop("refresh_token", None)
-                d.pop("cookie_full", None)
+            d.pop("cookie_full", None)
+            d.pop("cookie_snippet", None)
             decrypted_rows.append(d)
 
         # Tim chinh xac duy nhat 1 ID tai khoan dang active (uu tien token_hash/token -> auth_id -> email)
@@ -960,41 +806,17 @@ class AccountPoolManager:
         acc = dict(acc)
         access_token = decrypt_token(acc.get("access_token"))
         refresh_token = decrypt_token(acc.get("refresh_token"))
-        cookie_full = decrypt_token(acc.get("cookie_full"))
-        if not cookie_full and acc.get("cookie_full") and str(acc["cookie_full"]).startswith("enc:v1:"):
-            cookie_full = self._heal_cookie_from_disk(acc["id"], acc.get("file_name"), acc.get("email"))
 
-        # 1. Neu chua co access_token: uu tien trich xuat JWT truc tiep (0ms), fallback PKCE+CSRF
+        # 1. Pure OAuth: account must have a valid OAuth access_token
         if not access_token:
-            if not cookie_full:
-                return None
-            direct_jwt = extract_jwt_from_session_cookie(cookie_full)
-            if direct_jwt:
-                access_token = direct_jwt
-                refresh_token = refresh_token or direct_jwt
-            else:
-                tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-                if tokens and "accessToken" in tokens:
-                    access_token = tokens["accessToken"]
-                    refresh_token = tokens.get("refreshToken")
-                else:
-                    self._update_status(account_id, status="EXPIRED")
-                    return None
+            self._update_status(account_id, status="EXPIRED")
+            return None
 
-        # 2. Goi API lay thong tin GetMe va Quota
+        # 2. Call api2.cursor.sh for GetMe & GetCurrentPeriodUsage
         profile = self.storage.fetch_profile_from_api(access_token)
         if not profile or not profile.get("email"):
-            # Token co the het han, thu exchange lai neu co cookie
-            if cookie_full:
-                tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-                if tokens and "accessToken" in tokens and tokens["accessToken"] != access_token:
-                    access_token = tokens["accessToken"]
-                    refresh_token = tokens.get("refreshToken")
-                    profile = self.storage.fetch_profile_from_api(access_token)
-            
-            if not profile or not profile.get("email"):
-                self._update_status(account_id, status="EXPIRED")
-                return None
+            self._update_status(account_id, status="EXPIRED")
+            return None
 
         # 3. Danh gia trang thai dua tren chat lockout / quota detector
         if profile.get("usage_fetched"):
@@ -1800,19 +1622,14 @@ class AccountPoolManager:
         return bool(hasattr(fn, "_mock_name") or hasattr(fn, "mock_calls") or type(fn).__name__ == "MagicMock")
 
     def _decrypt_account_rows(self, raw_accounts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Decrypt tokens and cookies via fast LRU cache (with disk self-healing)."""
+        """Decrypt OAuth access/refresh tokens via fast bounded LRU cache."""
         hydrated = []
         for acc in raw_accounts:
             d = dict(acc)
             raw_tok = d.get("access_token")
             raw_ref = d.get("refresh_token")
-            raw_ck = d.get("cookie_full")
             d["access_token"] = decrypt_token(raw_tok) if raw_tok else None
             d["refresh_token"] = decrypt_token(raw_ref) if raw_ref else None
-            dec_ck = decrypt_token(raw_ck) if raw_ck else None
-            if not dec_ck and raw_ck and str(raw_ck).startswith("enc:v1:"):
-                dec_ck = self._heal_cookie_from_disk(d.get("id"), d.get("file_name"), d.get("email"))
-            d["cookie_full"] = dec_ck
             hydrated.append(d)
         return hydrated
 
@@ -2178,40 +1995,17 @@ class AccountPoolManager:
                     self.startup_sync_progress["current_account"] = email
 
                 raw_tok = acc.get("access_token")
-                raw_ck = acc.get("cookie_full")
                 token = decrypt_token(raw_tok) if raw_tok else None
-                cookie_full = decrypt_token(raw_ck) if raw_ck else None
-                if not cookie_full and raw_ck and str(raw_ck).startswith("enc:v1:"):
-                    cookie_full = self._heal_cookie_from_disk(acc_id, acc.get("file_name"), acc.get("email"))
                 new_status = None
                 success = False
                 cur_usage = 0.0
 
                 try:
-                    # 1. Neu chua co token, thu direct JWT hoac exchange cookie neu co
-                    if not token and cookie_full:
-                        direct_jwt = extract_jwt_from_session_cookie(cookie_full)
-                        if direct_jwt:
-                            tokens = {"accessToken": direct_jwt, "refreshToken": direct_jwt}
-                        else:
-                            tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-                        if tokens and tokens.get("accessToken"):
-                            token = tokens["accessToken"]
-                            ref_tok = tokens.get("refreshToken")
-                            with DB_LOCK:
-                                c = sqlite3.connect(DB_FILE, timeout=30.0)
-                                try:
-                                    c.execute(
-                                        "UPDATE accounts SET access_token = ?, refresh_token = ? WHERE id = ?",
-                                        (encrypt_token(token), encrypt_token(ref_tok), acc_id),
-                                    )
-                                    c.commit()
-                                finally:
-                                    c.close()
-                        else:
-                            new_status = "EXPIRED"
+                    # 1. Pure OAuth: missing access_token -> EXPIRED (requires OAuth PKCE login)
+                    if not token:
+                        new_status = "EXPIRED"
 
-                    # 2. Goi truc tiep API GetCurrentPeriodUsage cua Cursor voi access_token da giai ma
+                    # 2. Query Cursor GetCurrentPeriodUsage with decrypted OAuth access_token
                     if token and not new_status:
                         headers = {
                             "Authorization": f"Bearer {token}",
@@ -2283,87 +2077,18 @@ class AccountPoolManager:
                             success = True
 
                         elif resp.status_code in (401, 403):
-                            refreshed = False
-                            if cookie_full:
-                                tokens = self.auth_client.exchange_cookie_to_tokens(cookie_full)
-                                if tokens and tokens.get("accessToken"):
-                                    new_tok = tokens["accessToken"]
-                                    new_ref = tokens.get("refreshToken")
-                                    headers["Authorization"] = f"Bearer {new_tok}"
-                                    r2 = requests.post(
-                                        "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage",
-                                        headers=headers,
-                                        json={},
-                                        timeout=10
+                            new_status = "EXPIRED"
+                            now_ts = int(time.time())
+                            with DB_LOCK:
+                                c = sqlite3.connect(DB_FILE, timeout=30.0)
+                                try:
+                                    c.execute(
+                                        "UPDATE accounts SET status = 'EXPIRED', display_message = ?, last_checked = ? WHERE id = ?",
+                                        (f"Phiên OAuth hết hạn ({resp.status_code}) — bấm + Đăng Nhập OAuth để gia hạn", now_ts, acc_id),
                                     )
-                                    if r2.status_code == 200:
-                                        ud = r2.json()
-                                        plan_usage = ud.get("planUsage", {})
-                                        usage = float(plan_usage.get("totalPercentUsed", 0.0) or 0.0)
-                                        auto_usage = float(plan_usage.get("autoPercentUsed", 0.0) or 0.0)
-                                        spend = float(plan_usage.get("totalSpend", 0.0) or 0.0)
-                                        msg = ud.get("displayMessage", "") or ""
-                                        cur_usage = usage
-                                        locked, _ = is_chat_locked(
-                                            usage_data={"usagePercent": usage, "autoPercentUsed": auto_usage, "totalSpend": spend},
-                                            threshold=self.QUOTA_EXHAUSTION_THRESHOLD
-                                        )
-                                        now_ts = int(time.time())
-                                        cd_until = 0
-                                        if locked or usage >= self.QUOTA_EXHAUSTION_THRESHOLD or spend >= 200.0:
-                                            new_status = "EXHAUSTED"
-                                            cd_until = now_ts + self.BLACKLIST_COOLDOWN_SECONDS
-                                        elif usage >= self.QUOTA_WARNING_THRESHOLD:
-                                            new_status = "HIGH_USAGE"
-                                        else:
-                                            new_status = "READY"
-
-                                        enc_tok = encrypt_token(new_tok)
-                                        enc_ref = encrypt_token(new_ref)
-                                        tok_h = compute_token_hash(new_tok)
-                                        tok_m = mask_token(new_tok)
-
-                                        with DB_LOCK:
-                                            c = sqlite3.connect(DB_FILE, timeout=30.0)
-                                            try:
-                                                c_cols = {r[1] for r in c.execute("PRAGMA table_info(accounts);").fetchall()}
-                                                if has_cd and "token_hash" in c_cols and "token_mask" in c_cols:
-                                                    c.execute("""
-                                                        UPDATE accounts 
-                                                        SET access_token = ?, refresh_token = ?, token_hash = ?, token_mask = ?,
-                                                            usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
-                                                            cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
-                                                        WHERE id = ?
-                                                    """, (enc_tok, enc_ref, tok_h, tok_m, usage, spend, msg, new_status, now_ts, cd_until, cd_until, acc_id))
-                                                elif has_cd:
-                                                    c.execute("""
-                                                        UPDATE accounts 
-                                                        SET access_token = ?, refresh_token = ?, usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?,
-                                                            cooldown_until = CASE WHEN ? > 0 THEN ? ELSE cooldown_until END
-                                                        WHERE id = ?
-                                                    """, (enc_tok, enc_ref, usage, spend, msg, new_status, now_ts, cd_until, cd_until, acc_id))
-                                                else:
-                                                    c.execute("""
-                                                        UPDATE accounts 
-                                                        SET access_token = ?, refresh_token = ?, usage_percent = ?, total_spend = ?, display_message = ?, status = ?, last_checked = ?
-                                                        WHERE id = ?
-                                                    """, (enc_tok, enc_ref, usage, spend, msg, new_status, now_ts, acc_id))
-                                                c.commit()
-                                            finally:
-                                                c.close()
-
-                                        refreshed = True
-                                        success = True
-                            if not refreshed:
-                                new_status = "EXPIRED"
-                                now_ts = int(time.time())
-                                with DB_LOCK:
-                                    c = sqlite3.connect(DB_FILE, timeout=30.0)
-                                    try:
-                                        c.execute("UPDATE accounts SET status = 'EXPIRED', last_checked = ? WHERE id = ?", (now_ts, acc_id))
-                                        c.commit()
-                                    finally:
-                                        c.close()
+                                    c.commit()
+                                finally:
+                                    c.close()
                         else:
                             pass
 
@@ -2372,7 +2097,10 @@ class AccountPoolManager:
                         with DB_LOCK:
                             c = sqlite3.connect(DB_FILE, timeout=30.0)
                             try:
-                                c.execute("UPDATE accounts SET status = 'EXPIRED', last_checked = ? WHERE id = ?", (now_ts, acc_id))
+                                c.execute(
+                                    "UPDATE accounts SET status = 'EXPIRED', display_message = ?, last_checked = ? WHERE id = ?",
+                                    ("Thiếu OAuth Access Token — bấm + Đăng Nhập OAuth", now_ts, acc_id),
+                                )
                                 c.commit()
                             finally:
                                 c.close()
@@ -2454,109 +2182,12 @@ class AccountPoolManager:
             return True
         return False
 
-    def _quarantine_file(self, fname: Optional[str], email: Optional[str] = None, reason: str = "corrupted") -> bool:
-        """Chuyen file cookie loi hoac hong vao Cookies/Archive_Corrupted de tranh quet lap di lap lai."""
-        archive_dir = os.path.join(self.cookies_dir, "Archive_Corrupted")
-        os.makedirs(archive_dir, exist_ok=True)
-        candidates = []
-        if fname:
-            candidates.append(os.path.join(self.cookies_dir, fname))
-        if email:
-            candidates.append(os.path.join(self.cookies_dir, f"{email}.txt"))
-            candidates.append(os.path.join(self.cookies_dir, email))
-
-        moved = False
-        import shutil
-        for path in candidates:
-            if os.path.exists(path) and os.path.isfile(path):
-                base = os.path.basename(path)
-                dst = os.path.join(archive_dir, base)
-                try:
-                    shutil.move(path, dst)
-                    moved = True
-                    print(f"[QUARANTINE] Da cach ly cookie loi ({base} -> Archive_Corrupted, reason: {reason})")
-                except Exception as e:
-                    print(f"[-] Loi cach ly cookie {base}: {e}")
-        return moved
-
-    def quarantine_corrupted_cookies(self) -> int:
-        """
-        Quet va tu dong cach ly cac file cookie hong (0 bytes, unparseable, hoac da bi EXPIRED)
-        vao thu muc Cookies/Archive_Corrupted.
-        """
-        archive_dir = os.path.join(self.cookies_dir, "Archive_Corrupted")
-        os.makedirs(archive_dir, exist_ok=True)
-        count = 0
-        if not os.path.exists(self.cookies_dir):
-            return 0
-
-        # 1. Cach ly cac file co dung luong 0 bytes hoac noi dung rong
-        for f in os.listdir(self.cookies_dir):
-            if f.lower() == "archive_corrupted" or f.startswith("."):
-                continue
-            if f.lower().endswith(".txt") or f.lower().endswith(".cookie"):
-                fp = os.path.join(self.cookies_dir, f)
-                if os.path.isfile(fp):
-                    try:
-                        if os.path.getsize(fp) == 0:
-                            if self._quarantine_file(f, reason="empty_file"):
-                                count += 1
-                        else:
-                            with open(fp, "r", encoding="utf-8", errors="ignore") as rf:
-                                content = rf.read().strip()
-                            if not content:
-                                if self._quarantine_file(f, reason="blank_file"):
-                                    count += 1
-                    except Exception:
-                        pass
-
-        # 2. Cach ly cac file gan lien voi account co status EXPIRED trong DB
-        con = sqlite3.connect(DB_FILE, timeout=30.0)
-        try:
-            cur = con.cursor()
-            cur.execute("SELECT file_name, email FROM accounts WHERE status = 'EXPIRED'")
-            rows = cur.fetchall()
-            for fname, email in rows:
-                if self._quarantine_file(fname, email, reason="account_expired"):
-                    count += 1
-        finally:
-            con.close()
-
-        return count
-
-    def _remove_cookie_file(self, fname: Optional[str], email: Optional[str]) -> bool:
-        """Xoa file cookie vat ly khoi thu muc Cookies."""
-        candidates = []
-        if fname:
-            candidates.append(os.path.join(self.cookies_dir, fname))
-        if email:
-            candidates.append(os.path.join(self.cookies_dir, f"{email}.txt"))
-            candidates.append(os.path.join(self.cookies_dir, email))
-
-        deleted = False
-        for path in candidates:
-            if os.path.exists(path) and os.path.isfile(path):
-                try:
-                    os.remove(path)
-                    deleted = True
-                except Exception as e:
-                    print(f"[-] Loi khi xoa file {path}: {e}")
-        return deleted
-
-    def delete_invalid_accounts(self, archive: bool = True) -> int:
-        """Xoa toan bo cac tai khoan co trang thai EXPIRED khoi database pool va cach ly / xoa file cookie vat ly."""
+    def delete_invalid_accounts(self) -> int:
+        """Remove all EXPIRED OAuth sessions from the SQLite pool."""
         with DB_LOCK:
             con = sqlite3.connect(DB_FILE, timeout=30.0)
             try:
                 cur = con.cursor()
-                cur.execute("SELECT file_name, email FROM accounts WHERE status = 'EXPIRED'")
-                rows = cur.fetchall()
-                for fname, email in rows:
-                    if archive:
-                        self._quarantine_file(fname, email, reason="deleted_expired")
-                    else:
-                        self._remove_cookie_file(fname, email)
-
                 cur.execute("DELETE FROM accounts WHERE status = 'EXPIRED'")
                 deleted_count = cur.rowcount
                 con.commit()
@@ -2567,16 +2198,11 @@ class AccountPoolManager:
         return deleted_count
 
     def delete_exhausted_accounts(self, threshold: float = QUOTA_EXHAUSTION_THRESHOLD) -> int:
-        """Xoa toan bo cac tai khoan co usage_percent >= threshold hoac status la EXHAUSTED va xoa luon file cookie vat ly."""
+        """Remove all accounts whose usage_percent >= threshold or status == EXHAUSTED."""
         with DB_LOCK:
             con = sqlite3.connect(DB_FILE, timeout=30.0)
             try:
                 cur = con.cursor()
-                cur.execute("SELECT file_name, email FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
-                rows = cur.fetchall()
-                for fname, email in rows:
-                    self._remove_cookie_file(fname, email)
-
                 cur.execute("DELETE FROM accounts WHERE usage_percent >= ? OR status = 'EXHAUSTED'", (threshold,))
                 deleted_count = cur.rowcount
                 con.commit()
@@ -2587,24 +2213,19 @@ class AccountPoolManager:
         return deleted_count
 
     def delete_high_usage_accounts(self, threshold: float = QUOTA_EXHAUSTION_THRESHOLD) -> int:
-        """Alias cho delete_exhausted_accounts de dam bao tuong thich nguoc."""
+        """Alias for delete_exhausted_accounts."""
         return self.delete_exhausted_accounts(threshold=threshold)
 
     def delete_single_account(self, account_id: int) -> bool:
-        """Xoa 1 tai khoan cu the va xoa file cookie vat ly cua no."""
+        """Delete a single OAuth account from the SQLite pool."""
         deleted = False
         with DB_LOCK:
             con = sqlite3.connect(DB_FILE, timeout=30.0)
             try:
                 cur = con.cursor()
-                cur.execute("SELECT file_name, email FROM accounts WHERE id = ?", (account_id,))
-                row = cur.fetchone()
-                if row:
-                    fname, email = row
-                    self._remove_cookie_file(fname, email)
-                    cur.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
-                    con.commit()
-                    deleted = True
+                cur.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+                deleted = cur.rowcount > 0
+                con.commit()
             finally:
                 con.close()
         if deleted:
